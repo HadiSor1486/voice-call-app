@@ -14,17 +14,14 @@ app.use(express.static('public'));
 io.on('connection', (socket) => {
   console.log('New user connected:', socket.id);
 
-  // Relay the offer from one peer to another
   socket.on('offer', (offer) => {
     socket.broadcast.emit('offer', offer);
   });
 
-  // Relay the answer from one peer to another
   socket.on('answer', (answer) => {
     socket.broadcast.emit('answer', answer);
   });
 
-  // Relay ICE candidates between peers
   socket.on('new-ice-candidate', (candidate) => {
     socket.broadcast.emit('new-ice-candidate', candidate);
   });
@@ -34,7 +31,8 @@ io.on('connection', (socket) => {
   });
 });
 
-// Start the server
-server.listen(3000, () => {
-  console.log('Server is running on http://localhost:3000');
+// Use Render's PORT environment variable or default to 3000
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
