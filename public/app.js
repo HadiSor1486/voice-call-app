@@ -1,9 +1,11 @@
 const joinButton = document.getElementById('joinCall');
 const muteButton = document.getElementById('muteToggle');
+const callNotification = document.getElementById('callNotification');
 
 let localStream = null;
 let peerConnection = null;
 let isMuted = false;
+let inCall = false;
 
 // Socket.IO client for signaling
 const socket = io.connect();
@@ -43,12 +45,18 @@ joinButton.addEventListener('click', async () => {
     const audioElement = new Audio();
     audioElement.srcObject = remoteStream;
     audioElement.play();
+
+    // Show notification when another user joins
+    callNotification.style.display = 'block';
   };
 
   // Send an offer to the server to join the call
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
   socket.emit('offer', offer);
+  
+  // Update notification status
+  inCall = true;
 });
 
 // Toggle mute/unmute
@@ -72,6 +80,9 @@ socket.on('offer', async (offer) => {
       const audioElement = new Audio();
       audioElement.srcObject = remoteStream;
       audioElement.play();
+
+      // Show notification when another user joins
+      callNotification.style.display = 'block';
     };
   }
 
@@ -91,4 +102,9 @@ socket.on('new-ice-candidate', async (candidate) => {
   } catch (error) {
     console.error('Error adding received ICE candidate', error);
   }
+});
+
+// Handle when the other peer leaves the call
+socket.on('user-left', () => {
+  callNotification.style.display = 'none';
 });
