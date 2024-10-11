@@ -4,17 +4,132 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voice Call App</title>
-    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-image: url('https://i.imgur.com/sLsFBfR.jpeg');
+            background-size: cover;
+            background-position: center;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #joinCallBtn {
+            padding: 20px 40px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 20px;
+            box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.2);
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        #muteBtn, #unmuteBtn {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            display: none;
+        }
+
+        #callNotification {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: 2px solid #2ecc71;
+            border-radius: 10px;
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            font-size: 18px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #footerText {
+            position: absolute;
+            bottom: 20px;
+            text-align: center;
+            width: 100%;
+            font-size: 24px;
+            color: white;
+            text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.5);
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <button class="join-call-btn">Join Call</button>
-    </div>
 
-    <div class="footer">
-        <p class="family-text">عائلة موزة</p>
-    </div>
+    <button id="joinCallBtn">Join Call</button>
+    <button id="muteBtn">Mute</button>
+    <button id="unmuteBtn">Unmute</button>
 
-    <script src="client.js"></script>
+    <div id="callNotification">Call is on</div>
+
+    <div id="footerText">عائلة موزة</div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const joinCallBtn = document.getElementById('joinCallBtn');
+        const muteBtn = document.getElementById('muteBtn');
+        const unmuteBtn = document.getElementById('unmuteBtn');
+        const callNotification = document.getElementById('callNotification');
+        let localStream;
+        let inCall = false;
+
+        // Function to toggle mute and unmute
+        function toggleMute(isMuted) {
+            muteBtn.style.display = isMuted ? 'none' : 'block';
+            unmuteBtn.style.display = isMuted ? 'block' : 'none';
+            if (localStream) {
+                localStream.getAudioTracks()[0].enabled = !isMuted;
+            }
+        }
+
+        // Join call button click
+        joinCallBtn.addEventListener('click', () => {
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                localStream = stream;
+                joinCallBtn.style.display = 'none';
+                muteBtn.style.display = 'block';
+                inCall = true;
+                socket.emit('join-call');
+            });
+        });
+
+        muteBtn.addEventListener('click', () => toggleMute(true));
+        unmuteBtn.addEventListener('click', () => toggleMute(false));
+
+        // Handle call notification when the other person joins
+        socket.on('user-joined', () => {
+            if (inCall) {
+                callNotification.style.display = 'block';
+            }
+        });
+
+        socket.on('user-left', () => {
+            callNotification.style.display = 'none';
+        });
+
+        // When this user joins, notify others
+        socket.emit('join-call');
+    </script>
+
 </body>
 </html>
