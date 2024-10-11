@@ -91,30 +91,101 @@
         const unmuteBtn = document.getElementById('unmuteBtn');
         const callNotification = document.getElementById('callNotification');
         let localStream;
+        let peerConnection;
         let inCall = false;
 
-        // Function to toggle mute and unmute
-        function toggleMute(isMuted) {
-            muteBtn.style.display = isMuted ? 'none' : 'block';
-            unmuteBtn.style.display = isMuted ? 'block' : 'none';
-            if (localStream) {
-                localStream.getAudioTracks()[0].enabled = !isMuted;
-            }
+        const config = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' }
+            ]
+        };
+
+        // Handle incoming offer, answer and ICE candidates
+        socket.on('offer', handleOffer);
+        socket.on('answer', handleAnswer);
+        socket.on('new-ice-candidate', handleNewICECandidate);
+
+        function handleOffer(offer) {
+            peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
+            .then(() => {
+                return navigator.mediaDevices.getUserMedia({ audio: true });
+            })
+            .then(stream => {
+                localStream = stream;
+                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+                return peerConnection.createAnswer();
+            })
+            .then(answer => {
+                return peerConnection.setLocalDescription(answer);
+            })
+            .then(() => {
+                socket.emit('answer', peerConnection.localDescription);
+            })
+            .catch(handleError);
         }
 
-        // Join call button click
+        function handleAnswer(answer) {
+            peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+
+        function handleNewICECandidate(candidate) {
+            const iceCandidate = new RTCIceCandidate(candidate);
+            peerConnection.addIceCandidate(iceCandidate).catch(handleError);
+        }
+
+        function handleError(error) {
+            console.error(error);
+        }
+
+        // Join call and create peer connection
         joinCallBtn.addEventListener('click', () => {
-            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+            peerConnection = new RTCPeerConnection(config);
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('new-ice-candidate', event.candidate);
+                }
+            };
+
+            peerConnection.ontrack = (event) => {
+                const remoteAudio = new Audio();
+                remoteAudio.srcObject = event.streams[0];
+                remoteAudio.play();
+            };
+
+            navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
                 localStream = stream;
-                joinCallBtn.style.display = 'none';
-                muteBtn.style.display = 'block';
-                inCall = true;
-                socket.emit('join-call');
+                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+                peerConnection.createOffer()
+                .then(offer => {
+                    return peerConnection.setLocalDescription(offer);
+                })
+                .then(() => {
+                    socket.emit('offer', peerConnection.localDescription);
+                    joinCallBtn.style.display = 'none';
+                    muteBtn.style.display = 'block';
+                    inCall = true;
+                });
+            })
+            .catch(err => {
+                console.error('Error accessing microphone:', err);
+                alert('Unable to access your microphone. Please ensure you have granted permission.');
             });
         });
 
-        muteBtn.addEventListener('click', () => toggleMute(true));
-        unmuteBtn.addEventListener('click', () => toggleMute(false));
+        muteBtn.addEventListener('click', () => {
+            localStream.getAudioTracks()[0].enabled = false;
+            muteBtn.style.display = 'none';
+            unmuteBtn.style.display = 'block';
+        });
+
+        unmuteBtn.addEventListener('click', () => {
+            localStream.getAudioTracks()[0].enabled = true;
+            muteBtn.style.display = 'block';
+            unmuteBtn.style.display = 'none';
+        });
 
         // Handle call notification when the other person joins
         socket.on('user-joined', () => {
