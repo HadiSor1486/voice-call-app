@@ -20,7 +20,7 @@
             position: relative;
         }
 
-        #joinCall {
+        #joinCallBtn {
             padding: 20px 40px;
             background-color: #007bff;
             color: white;
@@ -35,7 +35,7 @@
             transform: translateX(-50%);
         }
 
-        #muteToggle {
+        #muteBtn, #unmuteBtn {
             padding: 10px 20px;
             background-color: #28a745;
             color: white;
@@ -75,12 +75,144 @@
 </head>
 <body>
 
-    <button id="joinCall">Join Call</button>
-    <button id="muteToggle">Mute</button>
+    <button id="joinCallBtn">Join Call</button>
+    <button id="muteBtn">Mute</button>
+    <button id="unmuteBtn">Unmute</button>
+
     <div id="callNotification">Call is on</div>
+
     <div id="footerText">عائلة موزة</div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="app.js"></script>
+    <script>
+        const socket = io();
+        const joinCallBtn = document.getElementById('joinCallBtn');
+        const muteBtn = document.getElementById('muteBtn');
+        const unmuteBtn = document.getElementById('unmuteBtn');
+        const callNotification = document.getElementById('callNotification');
+        let localStream;
+        let peerConnection;
+        let inCall = false;
+
+        const config = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' }
+            ]
+        };
+
+        // Handle incoming offer, answer and ICE candidates
+        socket.on('offer', handleOffer);
+        socket.on('answer', handleAnswer);
+        socket.on('new-ice-candidate', handleNewICECandidate);
+
+        function handleOffer(offer) {
+            peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
+            .then(() => {
+                return navigator.mediaDevices.getUserMedia({ audio: true });
+            })
+            .then(stream => {
+                localStream = stream;
+                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+                return peerConnection.createAnswer();
+            })
+            .then(answer => {
+                return peerConnection.setLocalDescription(answer);
+            })
+            .then(() => {
+                socket.emit('answer', peerConnection.localDescription);
+            })
+            .catch(handleError);
+        }
+
+        function handleAnswer(answer) {
+            peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+
+        function handleNewICECandidate(candidate) {
+            const iceCandidate = new RTCIceCandidate(candidate);
+            peerConnection.addIceCandidate(iceCandidate).catch(handleError);
+        }
+
+        function handleError(error) {
+            console.error(error);
+        }
+
+        // Join call and create peer connection
+        joinCallBtn.addEventListener('click', () => {
+            peerConnection = new RTCPeerConnection(config);
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('new-ice-candidate', event.candidate);
+                }
+            };
+
+            peerConnection.ontrack = (event) => {
+                const remoteAudio = new Audio();
+                remoteAudio.srcObject = event.streams[0];
+                remoteAudio.play();
+            };
+
+            navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                localStream = stream;
+                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+                peerConnection.createOffer()
+                .then(offer => {
+                    return peerConnection.setLocalDescription(offer);
+                })
+                .then(() => {
+                    socket.emit('offer', peerConnection.localDescription);
+                    joinCallBtn.style.display = 'none';
+                    muteBtn.style.display = 'block';
+                    inCall = true;
+                });
+            })
+            .catch(err => {
+                console.error('Error accessing microphone:', err);
+                alert('Unable to access your microphone. Please ensure you have granted permission.');
+            });
+        });
+
+        muteBtn.addEventListener('click', () => {
+    if (localStream && localStream.getAudioTracks().length > 0) {
+        console.log('Before mute:', localStream.getAudioTracks()[0].enabled);
+        localStream.getAudioTracks()[0].enabled = false;
+        console.log('After mute:', localStream.getAudioTracks()[0].enabled);
+        muteBtn.style.display = 'none';
+        unmuteBtn.style.display = 'block';
+    } else {
+        console.error('No audio track to mute');
+    }
+});
+
+unmuteBtn.addEventListener('click', () => {
+    if (localStream && localStream.getAudioTracks().length > 0) {
+        console.log('Before unmute:', localStream.getAudioTracks()[0].enabled);
+        localStream.getAudioTracks()[0].enabled = true;
+        console.log('After unmute:', localStream.getAudioTracks()[0].enabled);
+        muteBtn.style.display = 'block';
+        unmuteBtn.style.display = 'none';
+    } else {
+        console.error('No audio track to unmute');
+    }
+});
+
+        // Handle call notification when the other person joins
+        socket.on('user-joined', () => {
+            if (inCall) {
+                callNotification.style.display = 'block';
+            }
+        });
+
+        socket.on('user-left', () => {
+            callNotification.style.display = 'none';
+        });
+
+        // When this user joins, notify others
+        socket.emit('join-call');
+    </script>
+
 </body>
 </html>
