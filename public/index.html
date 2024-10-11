@@ -176,16 +176,28 @@
         });
 
         muteBtn.addEventListener('click', () => {
-            localStream.getAudioTracks()[0].enabled = false;
-            muteBtn.style.display = 'none';
-            unmuteBtn.style.display = 'block';
-        });
+    if (localStream && localStream.getAudioTracks().length > 0) {
+        console.log('Before mute:', localStream.getAudioTracks()[0].enabled);
+        localStream.getAudioTracks()[0].enabled = false;
+        console.log('After mute:', localStream.getAudioTracks()[0].enabled);
+        muteBtn.style.display = 'none';
+        unmuteBtn.style.display = 'block';
+    } else {
+        console.error('No audio track to mute');
+    }
+});
 
-        unmuteBtn.addEventListener('click', () => {
-            localStream.getAudioTracks()[0].enabled = true;
-            muteBtn.style.display = 'block';
-            unmuteBtn.style.display = 'none';
-        });
+unmuteBtn.addEventListener('click', () => {
+    if (localStream && localStream.getAudioTracks().length > 0) {
+        console.log('Before unmute:', localStream.getAudioTracks()[0].enabled);
+        localStream.getAudioTracks()[0].enabled = true;
+        console.log('After unmute:', localStream.getAudioTracks()[0].enabled);
+        muteBtn.style.display = 'block';
+        unmuteBtn.style.display = 'none';
+    } else {
+        console.error('No audio track to unmute');
+    }
+});
 
         // Handle call notification when the other person joins
         socket.on('user-joined', () => {
