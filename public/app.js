@@ -15,7 +15,7 @@ const muteBtn = document.getElementById('muteBtn');
 const unmuteBtn = document.getElementById('unmuteBtn');
 
 let localStream;
-let peerConnections = {};
+let peerConnections = {};  // Store peer connections for each connected peer
 const mediaConstraints = {
     audio: true,
     video: false  // Voice only
@@ -89,7 +89,64 @@ unmuteBtn.addEventListener('click', () => {
     unmuteBtn.style.display = 'none';
 });
 
-// WebRTC connection handling
+// Handle WebRTC peer connection setup
+function createPeerConnection(socketId) {
+    const peerConnection = new RTCPeerConnection();
+
+    // Add local audio stream to the peer connection
+    localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+    });
+
+    // Handle remote audio stream
+    peerConnection.ontrack = (event) => {
+        const remoteAudio = new Audio();
+        remoteAudio.srcObject = event.streams[0];
+        remoteAudio.play();  // Auto-play the remote audio when received
+        console.log("Received remote audio stream");
+    };
+
+    // Handle ICE candidates
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit('new-ice-candidate', { candidate: event.candidate, to: socketId });
+        }
+    };
+
+    peerConnections[socketId] = peerConnection;
+    return peerConnection;
+}
+
+// WebRTC: Handle offer from a peer
+socket.on('offer', async (offer) => {
+    const peerConnection = createPeerConnection(offer.from);
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    socket.emit('answer', { answer, to: offer.from });
+});
+
+// WebRTC: Handle answer from a peer
+socket.on('answer', async (answer) => {
+    const peerConnection = peerConnections[answer.from];
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+});
+
+// Handle incoming ICE candidates
+socket.on('new-ice-candidate', async (candidate) => {
+    const peerConnection = peerConnections[candidate.from];
+    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate.candidate));
+});
+
+// WebRTC: When a new user joins, create an offer for them
+socket.on('new-participant', async (socketId) => {
+    const peerConnection = createPeerConnection(socketId);
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    socket.emit('offer', { offer, to: socketId });
+});
+
+// Handle participants update
 socket.on('participants-update', (participants) => {
     participantsList.innerHTML = '';
     participants.forEach(participant => {
@@ -98,5 +155,3 @@ socket.on('participants-update', (participants) => {
         participantsList.appendChild(li);
     });
 });
-
-// WebRTC: Handle offer/answer and ICE candidates (as done earlier)
