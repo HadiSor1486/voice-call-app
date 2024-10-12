@@ -15,7 +15,7 @@ const muteBtn = document.getElementById('muteBtn');
 const unmuteBtn = document.getElementById('unmuteBtn');
 
 let localStream;
-let peerConnections = {};
+let peerConnections = {};  // Store peer connections for each participant
 const mediaConstraints = {
     audio: true,
     video: false  // Voice only
@@ -96,6 +96,19 @@ socket.on('participants-update', (participants) => {
         const li = document.createElement('li');
         li.textContent = `${participant.username} is in the room`;
         participantsList.appendChild(li);
+
+        // Create peer connections for each participant
+        if (!peerConnections[participant.socketId] && participant.socketId !== socket.id) {
+            const peerConnection = createPeerConnection(participant.socketId);
+            
+            // Create offer for each new participant
+            peerConnection.createOffer().then(offer => {
+                peerConnection.setLocalDescription(offer);
+                socket.emit('offer', { offer, to: participant.socketId });
+            }).catch(error => {
+                console.error("Error creating offer:", error);
+            });
+        }
     });
 });
 
@@ -120,7 +133,12 @@ socket.on('new-ice-candidate', (candidate) => {
 
 // Create a new peer connection
 function createPeerConnection(socketId) {
-    const peerConnection = new RTCPeerConnection();
+    const config = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' }  // Google STUN server
+        ]
+    };
+    const peerConnection = new RTCPeerConnection(config);
 
     // Add local audio stream to the peer connection
     localStream.getTracks().forEach(track => {
