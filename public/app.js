@@ -15,7 +15,7 @@ const muteBtn = document.getElementById('muteBtn');
 const unmuteBtn = document.getElementById('unmuteBtn');
 
 let localStream;
-let peerConnections = {};  // Store peer connections for each participant
+let peerConnections = {};
 const mediaConstraints = {
     audio: true,
     video: false  // Voice only
@@ -70,6 +70,9 @@ async function setupLocalStream() {
         localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
         muteBtn.style.display = 'block';
         unmuteBtn.style.display = 'none';
+
+        // Notify server that the user is ready with the local stream
+        socket.emit('ready');
     } catch (error) {
         console.error('Error accessing microphone:', error);
         alert('Could not access your microphone. Please check your device settings.');
@@ -96,49 +99,19 @@ socket.on('participants-update', (participants) => {
         const li = document.createElement('li');
         li.textContent = `${participant.username} is in the room`;
         participantsList.appendChild(li);
+    });
 
-        // Create peer connections for each participant
-        if (!peerConnections[participant.socketId] && participant.socketId !== socket.id) {
-            const peerConnection = createPeerConnection(participant.socketId);
-            
-            // Create offer for each new participant
-            peerConnection.createOffer().then(offer => {
-                peerConnection.setLocalDescription(offer);
-                socket.emit('offer', { offer, to: participant.socketId });
-            }).catch(error => {
-                console.error("Error creating offer:", error);
-            });
+    // Create peer connections for new participants
+    participants.forEach(participant => {
+        if (!peerConnections[participant.id]) {
+            createPeerConnection(participant.id);
         }
     });
 });
 
-// WebRTC: Handle offer/answer and ICE candidates
-socket.on('offer', async (offer) => {
-    const peerConnection = createPeerConnection(offer.from);
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    socket.emit('answer', { answer, to: offer.from });
-});
-
-socket.on('answer', async (answer) => {
-    const peerConnection = peerConnections[answer.from];
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-});
-
-socket.on('new-ice-candidate', (candidate) => {
-    const peerConnection = peerConnections[candidate.from];
-    peerConnection.addIceCandidate(new RTCIceCandidate(candidate.candidate));
-});
-
 // Create a new peer connection
 function createPeerConnection(socketId) {
-    const config = {
-        iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' }  // Google STUN server
-        ]
-    };
-    const peerConnection = new RTCPeerConnection(config);
+    const peerConnection = new RTCPeerConnection();
 
     // Add local audio stream to the peer connection
     localStream.getTracks().forEach(track => {
@@ -159,6 +132,25 @@ function createPeerConnection(socketId) {
         }
     };
 
+    // Store the peer connection
     peerConnections[socketId] = peerConnection;
-    return peerConnection;
 }
+
+// WebRTC: Handle offer/answer and ICE candidates
+socket.on('offer', async (offer) => {
+    const peerConnection = createPeerConnection(offer.from);
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    socket.emit('answer', { answer, to: offer.from });
+});
+
+socket.on('answer', async (answer) => {
+    const peerConnection = peerConnections[answer.from];
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+});
+
+socket.on('new-ice-candidate', (candidate) => {
+    const peerConnection = peerConnections[candidate.from];
+    peerConnection.addIceCandidate(new RTCIceCandidate(candidate.candidate));
+});
