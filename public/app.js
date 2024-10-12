@@ -72,7 +72,7 @@ async function setupLocalStream() {
         unmuteBtn.style.display = 'none';
 
         // Notify server that the user is ready with the local stream
-        socket.emit('ready');
+        socket.emit('ready', { roomCode: roomCodeSpan.textContent });
     } catch (error) {
         console.error('Error accessing microphone:', error);
         alert('Could not access your microphone. Please check your device settings.');
@@ -99,11 +99,9 @@ socket.on('participants-update', (participants) => {
         const li = document.createElement('li');
         li.textContent = `${participant.username} is in the room`;
         participantsList.appendChild(li);
-    });
 
-    // Create peer connections for new participants
-    participants.forEach(participant => {
-        if (!peerConnections[participant.id]) {
+        // Create peer connections for new participants if not already created
+        if (participant.id !== socket.id && !peerConnections[participant.id]) {
             createPeerConnection(participant.id);
         }
     });
@@ -122,7 +120,9 @@ function createPeerConnection(socketId) {
     peerConnection.ontrack = (event) => {
         const remoteAudio = new Audio();
         remoteAudio.srcObject = event.streams[0];
-        remoteAudio.play();  // Auto-play the audio when received
+        remoteAudio.play().catch(error => {
+            console.error('Error playing remote audio:', error);
+        });
     };
 
     // Handle ICE candidates
@@ -134,6 +134,9 @@ function createPeerConnection(socketId) {
 
     // Store the peer connection
     peerConnections[socketId] = peerConnection;
+
+    // Return the peer connection for further use
+    return peerConnection;
 }
 
 // WebRTC: Handle offer/answer and ICE candidates
@@ -147,10 +150,16 @@ socket.on('offer', async (offer) => {
 
 socket.on('answer', async (answer) => {
     const peerConnection = peerConnections[answer.from];
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    if (peerConnection) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    }
 });
 
 socket.on('new-ice-candidate', (candidate) => {
     const peerConnection = peerConnections[candidate.from];
-    peerConnection.addIceCandidate(new RTCIceCandidate(candidate.candidate));
+    if (peerConnection) {
+        peerConnection.addIceCandidate(new RTCIceCandidate(candidate.candidate)).catch(error => {
+            console.error('Error adding ICE candidate:', error);
+        });
+    }
 });
