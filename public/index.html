@@ -8,26 +8,24 @@
 </head>
 <body>
     <div class="container">
-        <div class="username-section">
-            <input type="text" id="username" placeholder="Enter your username" autocomplete="off" required />
-        </div>
-        <div class="room-buttons">
-            <button class="room-btn" id="createRoom">Create Room</button>
-            <button class="room-btn" id="joinRoom">Join Room</button>
-        </div>
-        <div id="roomCodeSection" style="display: none;">
+        <h1>Voice Call App</h1>
+        <input type="text" id="username" placeholder="Enter your username">
+        <div id="roomCodeSection" style="display:none;">
             <p>Room Code: <span id="roomCode"></span></p>
             <button id="copyRoomCode">Copy Room Code</button>
         </div>
-        <div id="joinRoomSection" style="display: none;">
-            <input type="text" id="roomCodeInput" placeholder="Enter Room Code" autocomplete="off">
+        <div id="joinRoomSection" style="display:none;">
+            <input type="text" id="roomCodeInput" placeholder="Enter Room Code">
             <button id="joinRoomBtn">Join Room</button>
         </div>
+        <button id="createRoom">Create Room</button>
+        <button id="joinRoom">Join Room</button>
         <ul id="participantsList"></ul>
         <button id="muteBtn" style="display:none;">Mute</button>
         <button id="unmuteBtn" style="display:none;">Unmute</button>
+        <div id="callNotification" style="display:none;">Call is on</div>
     </div>
-    <script src="/socket.io/socket.io.js"></script> <!-- Socket.IO Script -->
+    <script src="/socket.io/socket.io.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

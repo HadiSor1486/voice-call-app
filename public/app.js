@@ -13,12 +13,21 @@ const joinRoomBtnConfirm = document.getElementById('joinRoomBtn');
 const participantsList = document.getElementById('participantsList');
 const muteBtn = document.getElementById('muteBtn');
 const unmuteBtn = document.getElementById('unmuteBtn');
+const callNotification = document.getElementById('callNotification');
 
 let localStream;
-let peerConnections = {};
+let peerConnection;
+let inCall = false;
+
 const mediaConstraints = {
     audio: true,
-    video: false  // Voice only
+    video: false // Voice only
+};
+
+const config = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }
+    ]
 };
 
 // Create room logic
@@ -28,18 +37,12 @@ createRoomBtn.addEventListener('click', async () => {
         alert('Please enter a username.');
         return;
     }
-    const roomCode = Math.random().toString(36).substring(2, 10);  // Generate a random code
+    const roomCode = Math.random().toString(36).substring(2, 10); // Generate a random code
     socket.emit('create-room', { roomCode, username });
     roomCodeSpan.textContent = roomCode;
     roomCodeSection.style.display = 'block';
     joinRoomSection.style.display = 'none';
     await setupLocalStream();
-});
-
-// Copy room code
-copyRoomCodeBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(roomCodeSpan.textContent);
-    alert('Room code copied!');
 });
 
 // Join room logic
@@ -72,7 +75,7 @@ async function setupLocalStream() {
         unmuteBtn.style.display = 'none';
 
         // Notify server that the user is ready with the local stream
-        socket.emit('ready', { roomCode: roomCodeSpan.textContent });
+        socket.emit('ready');
     } catch (error) {
         console.error('Error accessing microphone:', error);
         alert('Could not access your microphone. Please check your device settings.');
@@ -99,17 +102,17 @@ socket.on('participants-update', (participants) => {
         const li = document.createElement('li');
         li.textContent = `${participant.username} is in the room`;
         participantsList.appendChild(li);
-
-        // Create peer connections for new participants if not already created
-        if (participant.id !== socket.id && !peerConnections[participant.id]) {
-            createPeerConnection(participant.id);
-        }
     });
+
+    // Create peer connection if there are two participants
+    if (participants.length === 2) {
+        createPeerConnection(participants[0].id === socket.id ? participants[1].id : participants[0].id);
+    }
 });
 
 // Create a new peer connection
 function createPeerConnection(socketId) {
-    const peerConnection = new RTCPeerConnection();
+    peerConnection = new RTCPeerConnection(config);
 
     // Add local audio stream to the peer connection
     localStream.getTracks().forEach(track => {
@@ -120,9 +123,7 @@ function createPeerConnection(socketId) {
     peerConnection.ontrack = (event) => {
         const remoteAudio = new Audio();
         remoteAudio.srcObject = event.streams[0];
-        remoteAudio.play().catch(error => {
-            console.error('Error playing remote audio:', error);
-        });
+        remoteAudio.play();  // Auto-play the audio when received
     };
 
     // Handle ICE candidates
@@ -132,34 +133,36 @@ function createPeerConnection(socketId) {
         }
     };
 
-    // Store the peer connection
-    peerConnections[socketId] = peerConnection;
-
-    // Return the peer connection for further use
-    return peerConnection;
+    // Initiate the call
+    peerConnection.createOffer()
+        .then(offer => {
+            return peerConnection.setLocalDescription(offer);
+        })
+        .then(() => {
+            socket.emit('offer', { offer: peerConnection.localDescription, to: socketId });
+        })
+        .catch(error => console.error('Error creating offer:', error));
 }
 
 // WebRTC: Handle offer/answer and ICE candidates
 socket.on('offer', async (offer) => {
-    const peerConnection = createPeerConnection(offer.from);
+    peerConnection = new RTCPeerConnection(config);
     await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+    localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+    });
+
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
     socket.emit('answer', { answer, to: offer.from });
 });
 
 socket.on('answer', async (answer) => {
-    const peerConnection = peerConnections[answer.from];
-    if (peerConnection) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-    }
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
 });
 
 socket.on('new-ice-candidate', (candidate) => {
-    const peerConnection = peerConnections[candidate.from];
-    if (peerConnection) {
-        peerConnection.addIceCandidate(new RTCIceCandidate(candidate.candidate)).catch(error => {
-            console.error('Error adding ICE candidate:', error);
-        });
-    }
+    const iceCandidate = new RTCIceCandidate(candidate);
+    peerConnection.addIceCandidate(iceCandidate).catch(error => console.error('Error adding ICE candidate:', error));
 });
