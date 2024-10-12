@@ -20,7 +20,7 @@
             position: relative;
         }
 
-        #joinCallBtn {
+        #createRoomBtn, #joinCallBtn {
             padding: 20px 40px;
             background-color: #007bff;
             color: white;
@@ -29,10 +29,12 @@
             cursor: pointer;
             font-size: 20px;
             box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.2);
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+            margin: 10px;
+        }
+
+        #roomCodeInput, #roomCodeDisplay {
+            margin: 10px;
+            font-size: 16px;
         }
 
         #muteBtn, #unmuteBtn {
@@ -75,7 +77,10 @@
 </head>
 <body>
 
+    <input type="text" id="roomCodeInput" placeholder="Enter Room Code" />
     <button id="joinCallBtn">Join Call</button>
+    <button id="createRoomBtn">Create Room</button>
+    <div id="roomCodeDisplay" style="display:none;"></div>
     <button id="muteBtn">Mute</button>
     <button id="unmuteBtn">Unmute</button>
 
@@ -87,12 +92,16 @@
     <script>
         const socket = io();
         const joinCallBtn = document.getElementById('joinCallBtn');
+        const createRoomBtn = document.getElementById('createRoomBtn');
+        const roomCodeInput = document.getElementById('roomCodeInput');
+        const roomCodeDisplay = document.getElementById('roomCodeDisplay');
         const muteBtn = document.getElementById('muteBtn');
         const unmuteBtn = document.getElementById('unmuteBtn');
         const callNotification = document.getElementById('callNotification');
         let localStream;
         let peerConnection;
         let inCall = false;
+        let currentRoomCode;
 
         const config = {
             iceServers: [
@@ -100,10 +109,18 @@
             ]
         };
 
-        // Handle incoming offer, answer and ICE candidates
+        // Handle incoming offer, answer, and ICE candidates
         socket.on('offer', handleOffer);
         socket.on('answer', handleAnswer);
         socket.on('new-ice-candidate', handleNewICECandidate);
+        socket.on('user-joined', () => {
+            if (inCall) {
+                callNotification.style.display = 'block';
+            }
+        });
+        socket.on('user-left', () => {
+            callNotification.style.display = 'none';
+        });
 
         function handleOffer(offer) {
             peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
@@ -137,8 +154,28 @@
             console.error(error);
         }
 
-        // Join call and create peer connection
+        createRoomBtn.addEventListener('click', () => {
+            currentRoomCode = generateRoomCode();
+            roomCodeDisplay.textContent = `Room Code: ${currentRoomCode} (Click to copy)`;
+            roomCodeDisplay.style.display = 'block';
+            roomCodeDisplay.onclick = () => {
+                navigator.clipboard.writeText(currentRoomCode);
+                alert('Room code copied to clipboard!');
+            };
+            socket.emit('create-room', currentRoomCode);
+        });
+
         joinCallBtn.addEventListener('click', () => {
+            const roomCode = roomCodeInput.value.trim();
+            if (!roomCode) {
+                alert('Please enter a room code.');
+                return;
+            }
+            socket.emit('join-room', roomCode);
+            initializePeerConnection();
+        });
+
+        function initializePeerConnection() {
             peerConnection = new RTCPeerConnection(config);
 
             peerConnection.onicecandidate = (event) => {
@@ -173,7 +210,7 @@
                 console.error('Error accessing microphone:', err);
                 alert('Unable to access your microphone. Please ensure you have granted permission.');
             });
-        });
+        }
 
         muteBtn.addEventListener('click', () => {
             localStream.getAudioTracks()[0].enabled = false;
@@ -187,19 +224,9 @@
             unmuteBtn.style.display = 'none';
         });
 
-        // Handle call notification when the other person joins
-        socket.on('user-joined', () => {
-            if (inCall) {
-                callNotification.style.display = 'block';
-            }
-        });
-
-        socket.on('user-left', () => {
-            callNotification.style.display = 'none';
-        });
-
-        // When this user joins, notify others
-        socket.emit('join-call');
+        function generateRoomCode() {
+            return Math.random().toString(36).substring(2, 8); // Generates a random 6-character room code
+        }
     </script>
 
 </body>
