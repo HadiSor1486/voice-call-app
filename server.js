@@ -1,4 +1,14 @@
-const io = require('socket.io')(server);  // Ensure socket.io is set up properly
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+
+// Set up the Express app
+const app = express();
+const server = http.createServer(app);  // Create the HTTP server
+
+// Initialize Socket.IO with the HTTP server
+const io = socketIo(server);
+
 const rooms = {};  // Store participants in rooms
 
 io.on('connection', (socket) => {
@@ -16,29 +26,24 @@ io.on('connection', (socket) => {
             rooms[roomCode].push({ id: socket.id, username });
             socket.join(roomCode);
             io.to(roomCode).emit('participants-update', rooms[roomCode]);
-            // Notify others in the room of the new participant for WebRTC connections
             socket.to(roomCode).emit('new-participant', socket.id);
         } else {
             socket.emit('error', 'Room does not exist.');
         }
     });
 
-    // Handle WebRTC offer from a peer
     socket.on('offer', ({ offer, to }) => {
         io.to(to).emit('offer', { offer, from: socket.id });
     });
 
-    // Handle WebRTC answer from a peer
     socket.on('answer', ({ answer, to }) => {
         io.to(to).emit('answer', { answer, from: socket.id });
     });
 
-    // Handle ICE candidate from a peer
     socket.on('new-ice-candidate', ({ candidate, to }) => {
         io.to(to).emit('new-ice-candidate', { candidate, from: socket.id });
     });
 
-    // Disconnect and remove from room
     socket.on('disconnect', () => {
         for (const roomCode in rooms) {
             rooms[roomCode] = rooms[roomCode].filter(user => user.id !== socket.id);
@@ -49,4 +54,13 @@ io.on('connection', (socket) => {
             }
         }
     });
+});
+
+// Serve the frontend (index.html, etc.)
+app.use(express.static('public'));
+
+// Listen on the specified port
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
 });
