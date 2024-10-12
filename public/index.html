@@ -9,7 +9,7 @@
 <body>
     <div class="container">
         <div class="username-section">
-            <input type="text" id="username" placeholder="Enter your username" required />
+            <input type="text" id="username" placeholder="Enter your username" required autocomplete="username" />
         </div>
         <div class="room-buttons">
             <button class="room-btn" id="createRoom">Create Room</button>
@@ -20,16 +20,15 @@
             <button id="copyRoomCode">Copy Room Code</button>
         </div>
         <div id="joinRoomSection" style="display: none;">
-            <input type="text" id="roomCodeInput" placeholder="Enter Room Code">
+            <input type="text" id="roomCodeInput" placeholder="Enter Room Code" autocomplete="off">
             <button id="joinRoomBtn">Join Room</button>
+        </div>
+        <div id="controls" style="display: none;">
+            <button id="muteBtn" style="display:none;">Mute</button>
+            <button id="unmuteBtn" style="display:none;">Unmute</button>
         </div>
         <ul id="participantsList"></ul>
     </div>
-
-    <!-- Load the Socket.IO client library -->
-    <script src="/socket.io/socket.io.js"></script>
-    
-    <!-- Load your app.js -->
     <script src="app.js"></script>
 </body>
 </html>

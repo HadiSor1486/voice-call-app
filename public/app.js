@@ -21,6 +21,19 @@ const mediaConstraints = {
     video: false  // We are only interested in audio for this voice call
 };
 
+// Check if microphone access is granted
+async function checkMicrophoneAccess() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        console.log('Microphone access granted.');
+        return true;
+    } catch (error) {
+        console.error('Could not access microphone:', error);
+        alert('Could not access microphone. Please check your device settings.');
+        return false;
+    }
+}
+
 // Create room logic
 createRoomBtn.addEventListener('click', async () => {
     console.log("Create Room button clicked");
@@ -29,6 +42,10 @@ createRoomBtn.addEventListener('click', async () => {
         alert('Please enter a username.');
         return;
     }
+
+    const hasMicAccess = await checkMicrophoneAccess();
+    if (!hasMicAccess) return;  // Stop if microphone access is denied
+
     const roomCode = Math.random().toString(36).substring(2, 10);  // Generate a random code
     socket.emit('create-room', { roomCode, username });
     roomCodeSpan.textContent = roomCode;
@@ -64,6 +81,10 @@ joinRoomBtnConfirm.addEventListener('click', async () => {
         alert('Please enter both a username and room code.');
         return;
     }
+
+    const hasMicAccess = await checkMicrophoneAccess();
+    if (!hasMicAccess) return;  // Stop if microphone access is denied
+
     socket.emit('join-room', { roomCode, username });
     await setupLocalStream();
     console.log(`Attempting to join room with code: ${roomCode}`);
@@ -150,7 +171,3 @@ unmuteBtn.addEventListener('click', () => {
     muteBtn.style.display = 'block';
     unmuteBtn.style.display = 'none';
 });
-
-// Handle initial UI setup
-muteBtn.style.display = 'none'; // Start with mute button hidden
-unmuteBtn.style.display = 'none'; // Start with unmute button hidden
