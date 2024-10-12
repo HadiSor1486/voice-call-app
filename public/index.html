@@ -9,7 +9,7 @@
             margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
-            background-image: url('https://i.imgur.com/97GxtT7.jpeg');
+            background-image: url('https://i.imgur.com/sLsFBfR.jpeg');
             background-size: cover;
             background-position: center;
             height: 100vh;
@@ -20,46 +20,35 @@
             position: relative;
         }
 
-        #joinCallBtn {
-            padding: 20px 40px;
+        .center-box {
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .button {
+            padding: 15px 30px;
+            margin: 10px;
             background-color: #007bff;
             color: white;
             border: none;
             border-radius: 50px;
             cursor: pointer;
-            font-size: 20px;
-            box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.2);
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-        }
-
-        #muteBtn, #unmuteBtn {
-            padding: 10px 20px;
-            background-color: #28a745;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            font-size: 16px;
-            margin: 10px;
-            display: none;
-        }
-
-        #callNotification {
-            padding: 10px 20px;
-            background-color: #28a745;
-            color: white;
-            border: 2px solid #2ecc71;
-            border-radius: 10px;
-            position: absolute;
-            top: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: none;
             font-size: 18px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s;
+        }
+
+        .button:hover {
+            background-color: #0056b3;
+        }
+
+        #roomIdInput {
+            padding: 10px;
+            margin: 10px;
+            font-size: 18px;
+            display: none;
         }
 
         #footerText {
@@ -75,131 +64,61 @@
 </head>
 <body>
 
-    <button id="joinCallBtn">Join Call</button>
-    <button id="muteBtn">Mute</button>
-    <button id="unmuteBtn">Unmute</button>
+    <div class="center-box">
+        <button class="button" id="createRoomBtn">Create Room</button>
+        <button class="button" id="joinRoomBtn">Join Room</button>
 
-    <div id="callNotification">Call is on</div>
+        <input type="text" id="roomIdInput" placeholder="Enter Room ID" />
+        <button class="button" id="enterRoomBtn" style="display: none;">Enter Room</button>
+    </div>
 
-    <div id="footerText">By Hadi.D</div>
+    <div id="footerText">عائلة موزة</div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const joinCallBtn = document.getElementById('joinCallBtn');
-        const muteBtn = document.getElementById('muteBtn');
-        const unmuteBtn = document.getElementById('unmuteBtn');
-        const callNotification = document.getElementById('callNotification');
-        let localStream;
-        let peerConnection;
-        let inCall = false;
 
-        const config = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' }
-            ]
-        };
+        const createRoomBtn = document.getElementById('createRoomBtn');
+        const joinRoomBtn = document.getElementById('joinRoomBtn');
+        const roomIdInput = document.getElementById('roomIdInput');
+        const enterRoomBtn = document.getElementById('enterRoomBtn');
 
-        // Handle incoming offer, answer and ICE candidates
-        socket.on('offer', handleOffer);
-        socket.on('answer', handleAnswer);
-        socket.on('new-ice-candidate', handleNewICECandidate);
+        let roomId;
 
-        function handleOffer(offer) {
-            peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
-            .then(() => {
-                return navigator.mediaDevices.getUserMedia({ audio: true });
-            })
-            .then(stream => {
-                localStream = stream;
-                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
-                return peerConnection.createAnswer();
-            })
-            .then(answer => {
-                return peerConnection.setLocalDescription(answer);
-            })
-            .then(() => {
-                socket.emit('answer', peerConnection.localDescription);
-            })
-            .catch(handleError);
-        }
-
-        function handleAnswer(answer) {
-            peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-        }
-
-        function handleNewICECandidate(candidate) {
-            const iceCandidate = new RTCIceCandidate(candidate);
-            peerConnection.addIceCandidate(iceCandidate).catch(handleError);
-        }
-
-        function handleError(error) {
-            console.error(error);
-        }
-
-        // Join call and create peer connection
-        joinCallBtn.addEventListener('click', () => {
-            peerConnection = new RTCPeerConnection(config);
-
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    socket.emit('new-ice-candidate', event.candidate);
-                }
-            };
-
-            peerConnection.ontrack = (event) => {
-                const remoteAudio = new Audio();
-                remoteAudio.srcObject = event.streams[0];
-                remoteAudio.play();
-            };
-
-            navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(stream => {
-                localStream = stream;
-                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
-
-                peerConnection.createOffer()
-                .then(offer => {
-                    return peerConnection.setLocalDescription(offer);
-                })
-                .then(() => {
-                    socket.emit('offer', peerConnection.localDescription);
-                    joinCallBtn.style.display = 'none';
-                    muteBtn.style.display = 'block';
-                    inCall = true;
-                });
-            })
-            .catch(err => {
-                console.error('Error accessing microphone:', err);
-                alert('Unable to access your microphone. Please ensure you have granted permission.');
-            });
+        // Handle "Create Room" button
+        createRoomBtn.addEventListener('click', () => {
+            roomId = Math.random().toString(36).substring(2, 10); // Generate room ID
+            alert(`Room created! Share this ID with others: ${roomId}`);
+            socket.emit('createRoom', roomId);
+            enterRoom(roomId);
         });
 
-        muteBtn.addEventListener('click', () => {
-            localStream.getAudioTracks()[0].enabled = false;
-            muteBtn.style.display = 'none';
-            unmuteBtn.style.display = 'block';
+        // Handle "Join Room" button
+        joinRoomBtn.addEventListener('click', () => {
+            roomIdInput.style.display = 'block';
+            enterRoomBtn.style.display = 'block';
         });
 
-        unmuteBtn.addEventListener('click', () => {
-            localStream.getAudioTracks()[0].enabled = true;
-            muteBtn.style.display = 'block';
-            unmuteBtn.style.display = 'none';
-        });
-
-        // Handle call notification when the other person joins
-        socket.on('user-joined', () => {
-            if (inCall) {
-                callNotification.style.display = 'block';
+        // Handle "Enter Room" button (when joining a room)
+        enterRoomBtn.addEventListener('click', () => {
+            roomId = roomIdInput.value.trim();
+            if (roomId) {
+                socket.emit('joinRoom', roomId);
+                enterRoom(roomId);
             }
         });
 
-        socket.on('user-left', () => {
-            callNotification.style.display = 'none';
-        });
+        function enterRoom(roomId) {
+            // Hide buttons and input, join the room
+            createRoomBtn.style.display = 'none';
+            joinRoomBtn.style.display = 'none';
+            roomIdInput.style.display = 'none';
+            enterRoomBtn.style.display = 'none';
 
-        // When this user joins, notify others
-        socket.emit('join-call');
+            // Start the call logic here after joining the room
+            console.log(`Joined room: ${roomId}`);
+            // Here you can use your existing peer connection and call logic
+        }
     </script>
 
 </body>
