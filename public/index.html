@@ -4,28 +4,203 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voice Call App</title>
-    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-image: url('https://i.imgur.com/97GxtT7.jpeg');
+            background-size: cover;
+            background-position: center;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #joinCallBtn {
+            padding: 20px 40px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 20px;
+            box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.2);
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        #muteBtn, #unmuteBtn {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            display: none;
+        }
+
+        #callNotification {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: 2px solid #2ecc71;
+            border-radius: 10px;
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+            font-size: 18px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #footerText {
+            position: absolute;
+            bottom: 20px;
+            text-align: center;
+            width: 100%;
+            font-size: 24px;
+            color: white;
+            text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.5);
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Voice Call App</h1>
-        <input type="text" id="username" placeholder="Enter your username">
-        <div id="roomCodeSection" style="display:none;">
-            <p>Room Code: <span id="roomCode"></span></p>
-            <button id="copyRoomCode">Copy Room Code</button>
-        </div>
-        <div id="joinRoomSection" style="display:none;">
-            <input type="text" id="roomCodeInput" placeholder="Enter Room Code">
-            <button id="joinRoomBtn">Join Room</button>
-        </div>
-        <button id="createRoom">Create Room</button>
-        <button id="joinRoom">Join Room</button>
-        <ul id="participantsList"></ul>
-        <button id="muteBtn" style="display:none;">Mute</button>
-        <button id="unmuteBtn" style="display:none;">Unmute</button>
-        <div id="callNotification" style="display:none;">Call is on</div>
-    </div>
+
+    <button id="joinCallBtn">Join Call</button>
+    <button id="muteBtn">Mute</button>
+    <button id="unmuteBtn">Unmute</button>
+
+    <div id="callNotification">Call is on</div>
+
+    <div id="footerText">By Hadi.D</div>
+
     <script src="/socket.io/socket.io.js"></script>
-    <script src="app.js"></script>
+    <script>
+        const socket = io();
+        const joinCallBtn = document.getElementById('joinCallBtn');
+        const muteBtn = document.getElementById('muteBtn');
+        const unmuteBtn = document.getElementById('unmuteBtn');
+        const callNotification = document.getElementById('callNotification');
+        let localStream;
+        let peerConnection;
+        let inCall = false;
+
+        const config = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' }
+            ]
+        };
+
+        // Handle incoming offer, answer and ICE candidates
+        socket.on('offer', handleOffer);
+        socket.on('answer', handleAnswer);
+        socket.on('new-ice-candidate', handleNewICECandidate);
+
+        function handleOffer(offer) {
+            peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
+            .then(() => {
+                return navigator.mediaDevices.getUserMedia({ audio: true });
+            })
+            .then(stream => {
+                localStream = stream;
+                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+                return peerConnection.createAnswer();
+            })
+            .then(answer => {
+                return peerConnection.setLocalDescription(answer);
+            })
+            .then(() => {
+                socket.emit('answer', peerConnection.localDescription);
+            })
+            .catch(handleError);
+        }
+
+        function handleAnswer(answer) {
+            peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+
+        function handleNewICECandidate(candidate) {
+            const iceCandidate = new RTCIceCandidate(candidate);
+            peerConnection.addIceCandidate(iceCandidate).catch(handleError);
+        }
+
+        function handleError(error) {
+            console.error(error);
+        }
+
+        // Join call and create peer connection
+        joinCallBtn.addEventListener('click', () => {
+            peerConnection = new RTCPeerConnection(config);
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('new-ice-candidate', event.candidate);
+                }
+            };
+
+            peerConnection.ontrack = (event) => {
+                const remoteAudio = new Audio();
+                remoteAudio.srcObject = event.streams[0];
+                remoteAudio.play();
+            };
+
+            navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                localStream = stream;
+                stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+
+                peerConnection.createOffer()
+                .then(offer => {
+                    return peerConnection.setLocalDescription(offer);
+                })
+                .then(() => {
+                    socket.emit('offer', peerConnection.localDescription);
+                    joinCallBtn.style.display = 'none';
+                    muteBtn.style.display = 'block';
+                    inCall = true;
+                });
+            })
+            .catch(err => {
+                console.error('Error accessing microphone:', err);
+                alert('Unable to access your microphone. Please ensure you have granted permission.');
+            });
+        });
+
+        muteBtn.addEventListener('click', () => {
+            localStream.getAudioTracks()[0].enabled = false;
+            muteBtn.style.display = 'none';
+            unmuteBtn.style.display = 'block';
+        });
+
+        unmuteBtn.addEventListener('click', () => {
+            localStream.getAudioTracks()[0].enabled = true;
+            muteBtn.style.display = 'block';
+            unmuteBtn.style.display = 'none';
+        });
+
+        // Handle call notification when the other person joins
+        socket.on('user-joined', () => {
+            if (inCall) {
+                callNotification.style.display = 'block';
+            }
+        });
+
+        socket.on('user-left', () => {
+            callNotification.style.display = 'none';
+        });
+
+        // When this user joins, notify others
+        socket.emit('join-call');
+    </script>
+
 </body>
 </html>
