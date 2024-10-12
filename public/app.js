@@ -23,6 +23,7 @@ const mediaConstraints = {
 
 // Create room logic
 createRoomBtn.addEventListener('click', async () => {
+    console.log("Create Room button clicked");
     const username = usernameInput.value.trim();
     if (!username) {
         alert('Please enter a username.');
@@ -34,9 +35,10 @@ createRoomBtn.addEventListener('click', async () => {
     roomCodeSection.style.display = 'block';
     joinRoomSection.style.display = 'none';
     await setupLocalStream();
+    console.log(`Room created with code: ${roomCode}`);
 });
 
-// Copy room code
+// Copy room code logic
 copyRoomCodeBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(roomCodeSpan.textContent);
     alert('Room code copied!');
@@ -44,6 +46,7 @@ copyRoomCodeBtn.addEventListener('click', () => {
 
 // Join room logic
 joinRoomBtn.addEventListener('click', () => {
+    console.log("Join Room button clicked");
     const username = usernameInput.value.trim();
     if (!username) {
         alert('Please enter a username.');
@@ -54,6 +57,7 @@ joinRoomBtn.addEventListener('click', () => {
 });
 
 joinRoomBtnConfirm.addEventListener('click', async () => {
+    console.log("Join Room confirmation clicked");
     const roomCode = roomCodeInput.value.trim();
     const username = usernameInput.value.trim();
     if (!roomCode || !username) {
@@ -62,6 +66,7 @@ joinRoomBtnConfirm.addEventListener('click', async () => {
     }
     socket.emit('join-room', { roomCode, username });
     await setupLocalStream();
+    console.log(`Attempting to join room with code: ${roomCode}`);
 });
 
 // Setup the local audio stream
@@ -69,6 +74,7 @@ async function setupLocalStream() {
     try {
         localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
         muteBtn.style.display = 'block';
+        console.log("Audio stream set up successfully");
     } catch (error) {
         console.error('Error accessing media devices:', error);
         alert('Could not access your microphone. Please check your device settings.');
@@ -83,8 +89,8 @@ socket.on('participants-update', (participants) => {
         li.textContent = `${participant.username} is in the room`;
         participantsList.appendChild(li);
     });
+    console.log("Participants updated", participants);
 });
-
 // WebRTC: Handle offer/answer and ICE candidates
 socket.on('offer', async (offer) => {
     const peerConnection = createPeerConnection(offer.from);
@@ -130,7 +136,6 @@ function createPeerConnection(socketId) {
     peerConnections[socketId] = peerConnection;
     return peerConnection;
 }
-
 // Mute and Unmute logic
 muteBtn.addEventListener('click', () => {
     localStream.getAudioTracks()[0].enabled = false;
@@ -143,3 +148,6 @@ unmuteBtn.addEventListener('click', () => {
     muteBtn.style.display = 'block';
     unmuteBtn.style.display = 'none';
 });
+
+// Handle WebRTC signaling (offer/answer, ICE candidates)...
+// WebRTC setup (already included in previous code)
