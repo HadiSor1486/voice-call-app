@@ -91,6 +91,7 @@ socket.on('participants-update', (participants) => {
     });
     console.log("Participants updated", participants);
 });
+
 // WebRTC: Handle offer/answer and ICE candidates
 socket.on('offer', async (offer) => {
     const peerConnection = createPeerConnection(offer.from);
@@ -136,18 +137,20 @@ function createPeerConnection(socketId) {
     peerConnections[socketId] = peerConnection;
     return peerConnection;
 }
+
 // Mute and Unmute logic
 muteBtn.addEventListener('click', () => {
-    localStream.getAudioTracks()[0].enabled = false;
+    localStream.getAudioTracks()[0].enabled = false; // Mute
     muteBtn.style.display = 'none';
     unmuteBtn.style.display = 'block';
 });
 
 unmuteBtn.addEventListener('click', () => {
-    localStream.getAudioTracks()[0].enabled = true;
+    localStream.getAudioTracks()[0].enabled = true; // Unmute
     muteBtn.style.display = 'block';
     unmuteBtn.style.display = 'none';
 });
 
-// Handle WebRTC signaling (offer/answer, ICE candidates)...
-// WebRTC setup (already included in previous code)
+// Handle initial UI setup
+muteBtn.style.display = 'none'; // Start with mute button hidden
+unmuteBtn.style.display = 'none'; // Start with unmute button hidden
