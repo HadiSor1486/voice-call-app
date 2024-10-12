@@ -4,122 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voice Call App</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-            background-image: url('https://i.imgur.com/sLsFBfR.jpeg');
-            background-size: cover;
-            background-position: center;
-            height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            position: relative;
-        }
-
-        .center-box {
-            background-color: rgba(255, 255, 255, 0.8);
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0px 0px 20px rgba(0, 0, 0, 0.2);
-        }
-
-        .button {
-            padding: 15px 30px;
-            margin: 10px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            font-size: 18px;
-            transition: background-color 0.3s;
-        }
-
-        .button:hover {
-            background-color: #0056b3;
-        }
-
-        #roomIdInput {
-            padding: 10px;
-            margin: 10px;
-            font-size: 18px;
-            display: none;
-        }
-
-        #footerText {
-            position: absolute;
-            bottom: 20px;
-            text-align: center;
-            width: 100%;
-            font-size: 24px;
-            color: white;
-            text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.5);
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-
-    <div class="center-box">
-        <button class="button" id="createRoomBtn">Create Room</button>
-        <button class="button" id="joinRoomBtn">Join Room</button>
-
-        <input type="text" id="roomIdInput" placeholder="Enter Room ID" />
-        <button class="button" id="enterRoomBtn" style="display: none;">Enter Room</button>
+    <div class="container">
+        <div class="username-section">
+            <input type="text" id="username" placeholder="Enter your username" required />
+        </div>
+        <div class="room-buttons">
+            <button class="room-btn" id="createRoom">Create Room</button>
+            <button class="room-btn" id="joinRoom">Join Room</button>
+        </div>
+        <div id="roomCodeSection" style="display: none;">
+            <p>Room Code: <span id="roomCode"></span></p>
+            <button id="copyRoomCode">Copy Room Code</button>
+        </div>
+        <div id="joinRoomSection" style="display: none;">
+            <input type="text" id="roomCodeInput" placeholder="Enter Room Code">
+            <button id="joinRoomBtn">Join Room</button>
+        </div>
+        <ul id="participantsList"></ul>
     </div>
-
-    <div id="footerText">عائلة موزة</div>
-
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-
-        const createRoomBtn = document.getElementById('createRoomBtn');
-        const joinRoomBtn = document.getElementById('joinRoomBtn');
-        const roomIdInput = document.getElementById('roomIdInput');
-        const enterRoomBtn = document.getElementById('enterRoomBtn');
-
-        let roomId;
-
-        // Handle "Create Room" button
-        createRoomBtn.addEventListener('click', () => {
-            roomId = Math.random().toString(36).substring(2, 10); // Generate room ID
-            alert(`Room created! Share this ID with others: ${roomId}`);
-            socket.emit('createRoom', roomId);
-            enterRoom(roomId);
-        });
-
-        // Handle "Join Room" button
-        joinRoomBtn.addEventListener('click', () => {
-            roomIdInput.style.display = 'block';
-            enterRoomBtn.style.display = 'block';
-        });
-
-        // Handle "Enter Room" button (when joining a room)
-        enterRoomBtn.addEventListener('click', () => {
-            roomId = roomIdInput.value.trim();
-            if (roomId) {
-                socket.emit('joinRoom', roomId);
-                enterRoom(roomId);
-            }
-        });
-
-        function enterRoom(roomId) {
-            // Hide buttons and input, join the room
-            createRoomBtn.style.display = 'none';
-            joinRoomBtn.style.display = 'none';
-            roomIdInput.style.display = 'none';
-            enterRoomBtn.style.display = 'none';
-
-            // Start the call logic here after joining the room
-            console.log(`Joined room: ${roomId}`);
-            // Here you can use your existing peer connection and call logic
-        }
-    </script>
-
+    <script src="app.js"></script>
 </body>
 </html>

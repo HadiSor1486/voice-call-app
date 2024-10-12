@@ -1,65 +1,145 @@
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const { v4: uuidV4 } = require('uuid');
+const socket = io();
 
-const app = express();
-const server = http.createServer(app);
-const io = socketIo(server);
+// HTML elements
+const createRoomBtn = document.getElementById('createRoom');
+const joinRoomBtn = document.getElementById('joinRoom');
+const usernameInput = document.getElementById('username');
+const roomCodeSection = document.getElementById('roomCodeSection');
+const roomCodeSpan = document.getElementById('roomCode');
+const copyRoomCodeBtn = document.getElementById('copyRoomCode');
+const joinRoomSection = document.getElementById('joinRoomSection');
+const roomCodeInput = document.getElementById('roomCodeInput');
+const joinRoomBtnConfirm = document.getElementById('joinRoomBtn');
+const participantsList = document.getElementById('participantsList');
+const muteBtn = document.getElementById('muteBtn');
+const unmuteBtn = document.getElementById('unmuteBtn');
 
-app.use(express.static('public')); // Assuming your static files (HTML, CSS, JS) are in a 'public' folder
+let localStream;
+let peerConnections = {};
+const mediaConstraints = {
+    audio: true,
+    video: false  // We are only interested in audio for this voice call
+};
 
-// Serve index.html as the default file
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/public/index.html');
+// Create room logic
+createRoomBtn.addEventListener('click', async () => {
+    const username = usernameInput.value.trim();
+    if (!username) {
+        alert('Please enter a username.');
+        return;
+    }
+    const roomCode = Math.random().toString(36).substring(2, 10);  // Generate a random code
+    socket.emit('create-room', { roomCode, username });
+    roomCodeSpan.textContent = roomCode;
+    roomCodeSection.style.display = 'block';
+    joinRoomSection.style.display = 'none';
+    await setupLocalStream();
 });
 
-// Handle connection via Socket.IO
-io.on('connection', socket => {
-    console.log('New user connected:', socket.id);
+// Copy room code
+copyRoomCodeBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(roomCodeSpan.textContent);
+    alert('Room code copied!');
+});
 
-    // When a user creates a room
-    socket.on('createRoom', (roomId) => {
-        socket.join(roomId);
-        console.log(`User ${socket.id} created and joined room ${roomId}`);
+// Join room logic
+joinRoomBtn.addEventListener('click', () => {
+    const username = usernameInput.value.trim();
+    if (!username) {
+        alert('Please enter a username.');
+        return;
+    }
+    roomCodeSection.style.display = 'none';
+    joinRoomSection.style.display = 'block';
+});
+
+joinRoomBtnConfirm.addEventListener('click', async () => {
+    const roomCode = roomCodeInput.value.trim();
+    const username = usernameInput.value.trim();
+    if (!roomCode || !username) {
+        alert('Please enter both a username and room code.');
+        return;
+    }
+    socket.emit('join-room', { roomCode, username });
+    await setupLocalStream();
+});
+
+// Setup the local audio stream
+async function setupLocalStream() {
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+        muteBtn.style.display = 'block';
+    } catch (error) {
+        console.error('Error accessing media devices:', error);
+        alert('Could not access your microphone. Please check your device settings.');
+    }
+}
+
+// Handle incoming participants list
+socket.on('participants-update', (participants) => {
+    participantsList.innerHTML = '';
+    participants.forEach(participant => {
+        const li = document.createElement('li');
+        li.textContent = `${participant.username} is in the room`;
+        participantsList.appendChild(li);
+    });
+});
+
+// WebRTC: Handle offer/answer and ICE candidates
+socket.on('offer', async (offer) => {
+    const peerConnection = createPeerConnection(offer.from);
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    socket.emit('answer', { answer, to: offer.from });
+});
+
+socket.on('answer', async (answer) => {
+    const peerConnection = peerConnections[answer.from];
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+});
+
+socket.on('new-ice-candidate', (candidate) => {
+    const peerConnection = peerConnections[candidate.from];
+    peerConnection.addIceCandidate(new RTCIceCandidate(candidate.candidate));
+});
+
+// Create a new peer connection
+function createPeerConnection(socketId) {
+    const peerConnection = new RTCPeerConnection();
+
+    // Add local audio stream to the peer connection
+    localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
     });
 
-    // When a user joins an existing room
-    socket.on('joinRoom', (roomId) => {
-        if (io.sockets.adapter.rooms.has(roomId)) {
-            socket.join(roomId);
-            console.log(`User ${socket.id} joined room ${roomId}`);
-            socket.to(roomId).emit('user-joined', socket.id); // Notify others in the room
-        } else {
-            socket.emit('error', 'Room not found');
-            console.log(`User ${socket.id} tried to join non-existing room ${roomId}`);
+    // Handle remote audio stream
+    peerConnection.ontrack = (event) => {
+        const remoteAudio = new Audio();
+        remoteAudio.srcObject = event.streams[0];
+        remoteAudio.play();  // Auto-play the audio when received
+    };
+
+    // Handle ICE candidates
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit('new-ice-candidate', { candidate: event.candidate, to: socketId });
         }
-    });
+    };
 
-    // Handle ICE candidates (for WebRTC connections)
-    socket.on('new-ice-candidate', (candidate, roomId) => {
-        socket.to(roomId).emit('new-ice-candidate', candidate);
-    });
+    peerConnections[socketId] = peerConnection;
+    return peerConnection;
+}
 
-    // Handle WebRTC offer
-    socket.on('offer', (offer, roomId) => {
-        socket.to(roomId).emit('offer', offer);
-    });
-
-    // Handle WebRTC answer
-    socket.on('answer', (answer, roomId) => {
-        socket.to(roomId).emit('answer', answer);
-    });
-
-    // Handle when a user leaves the room
-    socket.on('disconnect', () => {
-        io.emit('user-left', socket.id);
-        console.log(`User ${socket.id} disconnected`);
-    });
+// Mute and Unmute logic
+muteBtn.addEventListener('click', () => {
+    localStream.getAudioTracks()[0].enabled = false;
+    muteBtn.style.display = 'none';
+    unmuteBtn.style.display = 'block';
 });
 
-// Start the server
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+unmuteBtn.addEventListener('click', () => {
+    localStream.getAudioTracks()[0].enabled = true;
+    muteBtn.style.display = 'block';
+    unmuteBtn.style.display = 'none';
 });

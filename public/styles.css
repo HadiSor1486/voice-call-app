@@ -1,53 +1,57 @@
-/* Background image and layout */
 body {
     margin: 0;
     padding: 0;
     background-image: url('https://i.imgur.com/97GxtT7.jpeg');
     background-size: cover;
-    background-position: center;
-    font-family: 'Arial', sans-serif;
-    height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
-    flex-direction: column;
+    height: 100vh;
+    font-family: Arial, sans-serif;
 }
 
-/* Container for center alignment */
 .container {
     text-align: center;
 }
 
-/* Styling the circular 3D button */
-.join-call-btn {
-    background-color: #3a3939; /* Cute pink color */
+.username-section {
+    margin-bottom: 20px;
+}
+
+input {
+    padding: 10px;
+    border: 2px solid black;
+    border-radius: 5px;
+}
+
+.room-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+
+.room-btn {
+    padding: 15px 30px;
+    font-size: 1.2em;
     color: white;
+    background-color: black;
     border: none;
-    border-radius: 50%; /* Makes the button circular */
-    padding: 20px 40px;
-    font-size: 1.5em;
-    box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.2); /* 3D effect */
+    border-radius: 10px;
+    box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);
     cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    text-transform: uppercase;
+    transition: transform 0.2s ease;
 }
 
-/* 3D button hover effect */
-.join-call-btn:hover {
-    transform: translateY(-5px);
-    box-shadow: 0px 15px 25px rgba(0, 0, 0, 0.3);
+.room-btn:hover {
+    transform: scale(1.1);
 }
 
-/* Footer text styling */
-.footer {
-    position: absolute;
-    bottom: 20px;
-    width: 100%;
-    text-align: center;
+#roomCodeSection, #joinRoomSection {
+    margin-top: 20px;
 }
 
-.family-text {
-    font-size: 2em;
-    color: #fff;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); /* Cute decorative shadow */
+#participantsList {
+    list-style: none;
+    margin-top: 30px;
+    color: white;
 }
