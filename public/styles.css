@@ -1,57 +1,43 @@
 body {
-    margin: 0;
-    padding: 0;
     background-image: url('https://i.imgur.com/97GxtT7.jpeg');
     background-size: cover;
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
+    margin: 0;
     font-family: Arial, sans-serif;
 }
 
 .container {
     text-align: center;
+    background-color: rgba(255, 255, 255, 0.8);
+    padding: 20px;
+    border-radius: 10px;
 }
 
-.username-section {
-    margin-bottom: 20px;
+.room-buttons button, #muteBtn, #unmuteBtn {
+    padding: 10px 20px;
+    margin: 10px;
+    border-radius: 5px;
+    border: none;
+    background-color: black;
+    color: rgb(8, 189, 209);
+    cursor: pointer;
+}
+
+.room-buttons button:hover, #muteBtn:hover, #unmuteBtn:hover {
+    background-color: #333;
 }
 
 input {
     padding: 10px;
-    border: 2px solid black;
+    margin: 10px;
     border-radius: 5px;
-}
-
-.room-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-}
-
-.room-btn {
-    padding: 15px 30px;
-    font-size: 1.2em;
-    color: white;
-    background-color: black;
-    border: none;
-    border-radius: 10px;
-    box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.2);
-    cursor: pointer;
-    transition: transform 0.2s ease;
-}
-
-.room-btn:hover {
-    transform: scale(1.1);
-}
-
-#roomCodeSection, #joinRoomSection {
-    margin-top: 20px;
+    border: 1px solid #ccc;
 }
 
 #participantsList {
     list-style: none;
-    margin-top: 30px;
-    color: white;
+    padding: 0;
 }
