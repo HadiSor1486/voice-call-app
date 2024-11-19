@@ -12,7 +12,9 @@ const callPage = document.getElementById('call-page');
 const muteBtn = document.getElementById('mute-btn');
 const hangupBtn = document.getElementById('hangup-btn');
 const speakerBtn = document.getElementById('speaker-btn');
+const callNotification = document.getElementById('call-notification');
 
+// Room control elements
 let localStream;
 let peerConnection;
 let currentRoom;
@@ -31,6 +33,7 @@ createRoomBtn.addEventListener('click', () => {
     generatedRoomCode.textContent = `Room Code: ${roomCode}`;
     currentRoom = roomCode;
     socket.emit('create-room', roomCode);
+    alert(`Room created! Share this code with your friend: ${roomCode}`);
 });
 
 // Handle joining a room
@@ -116,5 +119,16 @@ speakerBtn.addEventListener('click', () => {
 // Hangup functionality
 hangupBtn.addEventListener('click', () => {
     peerConnection.close();
+    socket.emit('leave-room', currentRoom);
     location.reload();
+});
+
+// Show call notification when both users are in the room
+socket.on('call-is-on', () => {
+    callNotification.style.display = 'block';
+});
+
+// Hide call notification when a user leaves
+socket.on('call-ended', () => {
+    callNotification.style.display = 'none';
 });

@@ -7,13 +7,17 @@
     <link rel="stylesheet" href="app.css">
 </head>
 <body>
-    <div id="room-buttons">
+    <!-- Room creation / joining -->
+    <div id="room-container">
         <h1>BY SOR</h1>
-        <button id="create-room">Create Room</button>
         <input id="room-code-input" type="text" placeholder="Enter Room Code" />
-        <button id="join-room">Join Call</button>
+        <div id="room-buttons">
+            <button id="create-room">Create Room</button>
+            <button id="join-room">Join Call</button>
+        </div>
     </div>
 
+    <!-- Call controls (hidden initially) -->
     <div id="call-controls" style="display: none;">
         <button id="mute-button" class="control-button">
             <i class="icon">🔇</i>
