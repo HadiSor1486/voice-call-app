@@ -3,21 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instagram Call Style</title>
+    <title>Video Call App</title>
     <link rel="stylesheet" href="styles.css">
-    <script defer src="app.js"></script>
 </head>
 <body>
-    <div class="controls">
-        <button id="muteToggle">
-            <img src="https://img.icons8.com/ios-filled/50/ffffff/microphone.png" alt="Mute">
-        </button>
-        <button id="hangup">
-            <img src="https://img.icons8.com/ios-filled/50/ff0000/end-call.png" alt="Hangup">
-        </button>
-        <button id="speakerToggle">
-            <img src="https://img.icons8.com/ios-filled/50/ffffff/speaker.png" alt="Speaker">
-        </button>
+    <div id="landing-page">
+        <h1>Welcome to the Video Call App</h1>
+        <button id="create-room">Create Room</button>
+        <input type="text" id="room-code-input" placeholder="Enter Room Code" />
+        <button id="join-room">Join Room</button>
+        <p id="generated-room-code" style="display: none;"></p>
     </div>
+
+    <div id="call-page" style="display: none;">
+        <div id="call-background">
+            <img src="https://i.imgur.com/ItfhkPw.jpeg" alt="Background" id="call-bg-img">
+            <div id="buttons">
+                <button id="mute-btn">Mute</button>
+                <button id="hangup-btn">Hang Up</button>
+                <button id="speaker-btn">Speaker Off</button>
+            </div>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
 </body>
 </html>

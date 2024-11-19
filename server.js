@@ -1,10 +1,10 @@
 const express = require('express');
 const http = require('http');
-const socketIO = require('socket.io');
+const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIO(server);
+const io = new Server(server);
 
 // Serve static files
 app.use(express.static('public'));
@@ -12,7 +12,7 @@ app.use(express.static('public'));
 // Rooms data structure
 const rooms = {};
 
-// WebSocket connection handling
+// Handle WebSocket connections
 io.on('connection', (socket) => {
     console.log('New user connected:', socket.id);
 
@@ -24,6 +24,7 @@ io.on('connection', (socket) => {
         rooms[room].push(socket.id);
         socket.join(room);
         console.log(`Room ${room} created or joined by ${socket.id}`);
+        socket.emit('room-created', room); // Send back confirmation of room creation
     });
 
     // Handle 'join-room' event
@@ -31,7 +32,7 @@ io.on('connection', (socket) => {
         if (rooms[room]) {
             rooms[room].push(socket.id);
             socket.join(room);
-            socket.to(room).emit('user-joined', { id: socket.id });
+            socket.to(room).emit('user-joined', { id: socket.id }); // Notify others in the room
             console.log(`User ${socket.id} joined room ${room}`);
         } else {
             socket.emit('error', 'Room does not exist.');
@@ -40,14 +41,17 @@ io.on('connection', (socket) => {
 
     // Handle WebRTC signaling
     socket.on('offer', ({ offer, room }) => {
+        console.log(`Offer received in room ${room}`);
         socket.to(room).emit('offer', { offer, id: socket.id });
     });
 
     socket.on('answer', ({ answer, room }) => {
+        console.log(`Answer received in room ${room}`);
         socket.to(room).emit('answer', { answer, id: socket.id });
     });
 
     socket.on('new-ice-candidate', ({ candidate, room }) => {
+        console.log(`ICE Candidate received in room ${room}`);
         socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
