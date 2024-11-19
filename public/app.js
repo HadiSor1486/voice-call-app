@@ -1,110 +1,106 @@
-const joinButton = document.getElementById('joinCall');
 const muteButton = document.getElementById('muteToggle');
-const callNotification = document.getElementById('callNotification');
+const hangupButton = document.getElementById('hangup');
+const speakerButton = document.getElementById('speakerToggle');
 
 let localStream = null;
 let peerConnection = null;
 let isMuted = false;
-let inCall = false;
+let isSpeakerMuted = false;
 
 // Socket.IO client for signaling
 const socket = io.connect();
-
-// WebRTC configuration (STUN server to help peers find each other)
 const configuration = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-  ]
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 };
 
-// Handle the button click to join the call
-joinButton.addEventListener('click', async () => {
-  // Get audio stream from the microphone
-  localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+// Initialize call
+async function startCall() {
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  // Show mute button and hide join button
-  muteButton.style.display = 'inline';
-  joinButton.style.display = 'none';
+    peerConnection = new RTCPeerConnection(configuration);
+    localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
 
-  // Initialize the peer connection
-  peerConnection = new RTCPeerConnection(configuration);
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit('new-ice-candidate', event.candidate);
+        }
+    };
 
-  // Add the local audio stream to the peer connection
-  localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+    peerConnection.ontrack = (event) => {
+        const [remoteStream] = event.streams;
+        const audioElement = new Audio();
+        audioElement.srcObject = remoteStream;
+        audioElement.autoplay = true;
 
-  // Handle incoming ICE candidates from the other peer
-  peerConnection.onicecandidate = event => {
-    if (event.candidate) {
-      socket.emit('new-ice-candidate', event.candidate);
+        // Toggle speaker mute
+        speakerButton.addEventListener('click', () => {
+            isSpeakerMuted = !isSpeakerMuted;
+            audioElement.muted = isSpeakerMuted;
+            speakerButton.querySelector('img').src = isSpeakerMuted
+                ? 'https://img.icons8.com/ios-filled/50/ffffff/no-audio.png'
+                : 'https://img.icons8.com/ios-filled/50/ffffff/speaker.png';
+        });
+    };
+
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    socket.emit('offer', offer);
+}
+
+// Mute/unmute the microphone
+muteButton.addEventListener('click', () => {
+    if (localStream) {
+        isMuted = !isMuted;
+        localStream.getAudioTracks()[0].enabled = !isMuted;
+        muteButton.querySelector('img').src = isMuted
+            ? 'https://img.icons8.com/ios-filled/50/ffffff/no-microphone.png'
+            : 'https://img.icons8.com/ios-filled/50/ffffff/microphone.png';
     }
-  };
-
-  // Handle when the other peer adds a stream
-  peerConnection.ontrack = event => {
-    const [remoteStream] = event.streams;
-    const audioElement = new Audio();
-    audioElement.srcObject = remoteStream;
-    audioElement.play();
-
-    // Show notification when another user joins
-    callNotification.style.display = 'block';
-  };
-
-  // Send an offer to the server to join the call
-  const offer = await peerConnection.createOffer();
-  await peerConnection.setLocalDescription(offer);
-  socket.emit('offer', offer);
-  
-  // Update notification status
-  inCall = true;
 });
 
-// Toggle mute/unmute
-muteButton.addEventListener('click', () => {
-  isMuted = !isMuted;
-  localStream.getAudioTracks()[0].enabled = !isMuted;
-  muteButton.textContent = isMuted ? 'Unmute' : 'Mute';
+// Hang up the call
+hangupButton.addEventListener('click', () => {
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
+    if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+        localStream = null;
+    }
+    socket.emit('leave-call');
 });
 
 // Socket.IO event handlers
 socket.on('offer', async (offer) => {
-  if (!peerConnection) {
-    peerConnection = new RTCPeerConnection(configuration);
-    peerConnection.onicecandidate = event => {
-      if (event.candidate) {
-        socket.emit('new-ice-candidate', event.candidate);
-      }
-    };
-    peerConnection.ontrack = event => {
-      const [remoteStream] = event.streams;
-      const audioElement = new Audio();
-      audioElement.srcObject = remoteStream;
-      audioElement.play();
-
-      // Show notification when another user joins
-      callNotification.style.display = 'block';
-    };
-  }
-
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-  const answer = await peerConnection.createAnswer();
-  await peerConnection.setLocalDescription(answer);
-  socket.emit('answer', answer);
+    if (!peerConnection) {
+        peerConnection = new RTCPeerConnection(configuration);
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('new-ice-candidate', event.candidate);
+            }
+        };
+        peerConnection.ontrack = (event) => {
+            const [remoteStream] = event.streams;
+            const audioElement = new Audio();
+            audioElement.srcObject = remoteStream;
+            audioElement.autoplay = true;
+        };
+    }
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    socket.emit('answer', answer);
 });
 
 socket.on('answer', async (answer) => {
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
 });
 
 socket.on('new-ice-candidate', async (candidate) => {
-  try {
-    await peerConnection.addIceCandidate(candidate);
-  } catch (error) {
-    console.error('Error adding received ICE candidate', error);
-  }
-});
-
-// Handle when the other peer leaves the call
-socket.on('user-left', () => {
-  callNotification.style.display = 'none';
+    try {
+        await peerConnection.addIceCandidate(candidate);
+    } catch (error) {
+        console.error('Error adding ICE candidate:', error);
+    }
 });
