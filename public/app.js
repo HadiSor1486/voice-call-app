@@ -1,3 +1,4 @@
+// DOM Elements
 const createRoomButton = document.getElementById('create-room');
 const joinRoomButton = document.getElementById('join-room');
 const copyCodeButton = document.getElementById('copy-code');
@@ -5,11 +6,13 @@ const roomCodeInput = document.getElementById('room-code-input');
 const generatedRoomCodeElement = document.getElementById('generated-room-code');
 const roomCodeContainer = document.getElementById('room-code-container');
 const callNotification = document.getElementById('call-notification');
+const participantsDiv = document.getElementById('participants');
 
 const muteButton = document.getElementById('mute-btn');
 const hangupButton = document.getElementById('hangup-btn');
 const speakerButton = document.getElementById('speaker-btn');
 
+// Global variables for media and connection
 let localStream = null;
 let peerConnection = null;
 let isMuted = false;
@@ -18,10 +21,10 @@ let isSpeakerMuted = false;
 // Socket.IO client for signaling
 const socket = io.connect();
 const configuration = {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]  // ICE server for NAT traversal
 };
 
-// Function to create a unique room code
+// Function to generate a unique room code
 function generateRoomCode() {
     return Math.random().toString(36).substring(2, 10).toUpperCase();
 }
@@ -31,16 +34,18 @@ createRoomButton.addEventListener('click', () => {
     const roomCode = generateRoomCode();
     generatedRoomCodeElement.value = roomCode;
     roomCodeContainer.style.display = 'block';
+    // Emit the room code to the server to notify other users
+    socket.emit('create-room', roomCode);
 });
 
-// Handle copying room code
+// Handle copying room code to clipboard
 copyCodeButton.addEventListener('click', () => {
     navigator.clipboard.writeText(generatedRoomCodeElement.value).then(() => {
         alert('Room code copied to clipboard!');
     });
 });
 
-// Handle joining a room
+// Handle joining a room with the code entered
 joinRoomButton.addEventListener('click', () => {
     const roomCode = roomCodeInput.value.trim();
     if (roomCode) {
@@ -53,10 +58,9 @@ joinRoomButton.addEventListener('click', () => {
     }
 });
 
-// Initialize call
+// Start the call by initializing media and peer connection
 async function startCall() {
     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
     peerConnection = new RTCPeerConnection(configuration);
     localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
 
@@ -71,7 +75,6 @@ async function startCall() {
         const audioElement = new Audio();
         audioElement.srcObject = remoteStream;
         audioElement.autoplay = true;
-
         // Toggle speaker mute
         speakerButton.addEventListener('click', () => {
             isSpeakerMuted = !isSpeakerMuted;
@@ -80,11 +83,12 @@ async function startCall() {
         });
     };
 
+    // Create and send offer to the peer
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
     socket.emit('offer', offer);
 
-    // Display call notification
+    // Display the "Call is ON" notification
     showCallNotification();
 }
 
@@ -97,7 +101,7 @@ muteButton.addEventListener('click', () => {
     }
 });
 
-// Hang up the call
+// Hang up the call and close the connection
 hangupButton.addEventListener('click', () => {
     if (peerConnection) {
         peerConnection.close();
@@ -138,7 +142,19 @@ function hideCallNotification() {
     callNotification.style.display = 'none';
 }
 
+// Add participant to the room display
+function updateParticipants(participants) {
+    participantsDiv.innerHTML = '';
+    participants.forEach((participant) => {
+        const participantElement = document.createElement('div');
+        participantElement.textContent = `${participant} is in the room`;
+        participantsDiv.appendChild(participantElement);
+    });
+}
+
 // Socket.IO event handlers
+
+// Handle the offer received from the other user
 socket.on('offer', async (offer) => {
     if (!peerConnection) {
         peerConnection = new RTCPeerConnection(configuration);
@@ -160,10 +176,12 @@ socket.on('offer', async (offer) => {
     socket.emit('answer', answer);
 });
 
+// Handle the answer from the other user
 socket.on('answer', async (answer) => {
     await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
 });
 
+// Handle new ICE candidate
 socket.on('new-ice-candidate', async (candidate) => {
     try {
         await peerConnection.addIceCandidate(candidate);
@@ -172,6 +190,23 @@ socket.on('new-ice-candidate', async (candidate) => {
     }
 });
 
+// Handle when the call ends
 socket.on('call-ended', () => {
     hangupButton.click();
+});
+
+// Handle room creation on the server side
+socket.on('room-created', (roomCode) => {
+    generatedRoomCodeElement.value = roomCode;
+    roomCodeContainer.style.display = 'block';
+});
+
+// Handle participants list update
+socket.on('update-participants', (participants) => {
+    updateParticipants(participants);
+});
+
+// Display notification when a new user joins
+socket.on('user-joined', (username) => {
+    alert(`${username} has joined the room.`);
 });
