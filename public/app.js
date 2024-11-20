@@ -3,11 +3,18 @@ const muteButton = document.getElementById('mute-btn');
 const hangupButton = document.getElementById('hangup-btn');
 const speakerButton = document.getElementById('speaker-btn');
 const callNotification = document.getElementById('call-notification');
+const createRoomButton = document.getElementById('create-room');
+const joinRoomButton = document.getElementById('join-room');
+const roomCodeInput = document.getElementById('room-code-input');
+const generatedRoomCode = document.getElementById('generated-room-code');
+const roomCodeDisplay = document.getElementById('room-code');
+const copyBtn = document.getElementById('copy-btn');
 
 let localStream = null;
 let peerConnection = null;
 let isMuted = false;
 let isSpeakerMuted = false;
+let roomCode = "";
 
 // Socket.IO client for signaling
 const configuration = {
@@ -47,10 +54,19 @@ muteButton.addEventListener('click', () => {
         localStream.getAudioTracks()[0].enabled = !isMuted;
         muteButton.querySelector('i').classList.toggle('fa-microphone-slash', isMuted);
         muteButton.querySelector('i').classList.toggle('fa-microphone', !isMuted);
+        muteButton.style.color = isMuted ? 'red' : 'green';
     }
 });
 
-// Hang up the call for both users
+// Toggle speaker on/off
+speakerButton.addEventListener('click', () => {
+    isSpeakerMuted = !isSpeakerMuted;
+    speakerButton.querySelector('i').classList.toggle('fa-volume-up', !isSpeakerMuted);
+    speakerButton.querySelector('i').classList.toggle('fa-volume-mute', isSpeakerMuted);
+    speakerButton.style.color = isSpeakerMuted ? 'red' : 'green';
+});
+
+// Hang up the call
 hangupButton.addEventListener('click', () => {
     if (peerConnection) {
         peerConnection.close();
@@ -62,6 +78,27 @@ hangupButton.addEventListener('click', () => {
     }
     socket.emit('leave-call');
     callNotification.style.display = 'none';
+});
+
+// Create Room
+createRoomButton.addEventListener('click', () => {
+    roomCode = generateRoomCode();
+    roomCodeDisplay.textContent = roomCode;
+    generatedRoomCode.style.display = 'block';
+});
+
+// Copy Room Code
+copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(roomCode);
+    alert('Room Code copied to clipboard!');
+});
+
+// Join Room
+joinRoomButton.addEventListener('click', () => {
+    const code = roomCodeInput.value;
+    if (code) {
+        socket.emit('join-room', code);
+    }
 });
 
 // Socket.IO event handlers
@@ -110,3 +147,7 @@ socket.on('call-ended', () => {
     alert('Call has ended.');
     location.reload();
 });
+
+function generateRoomCode() {
+    return Math.random().toString(36).substring(2, 8);
+}
