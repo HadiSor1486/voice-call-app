@@ -3,28 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Call App</title>
+    <title>Voice Call App</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <!-- Landing Page -->
     <div id="landing-page">
-        <h1>By Sor</h1>
-        <button id="create-room">Create Room</button>
-        <input type="text" id="room-code-input" placeholder="Enter Room Code" />
-        <button id="join-room">Join Room</button>
-        <p id="generated-room-code" style="display: none;"></p>
-    </div>
-
-    <div id="call-page" style="display: none;">
-        <div id="call-background">
-            <img src="https://i.imgur.com/ItfhkPw.jpeg" alt="Background" id="call-bg-img">
-            <div id="buttons">
-                <button id="mute-btn">Mute</button>
-                <button id="hangup-btn">Hang Up</button>
-                <button id="speaker-btn">Speaker Off</button>
+        <h1>BY SOR</h1>
+        <div id="room-container">
+            <button id="create-room">Create Room</button>
+            <button id="join-room">Join Room</button>
+            <input id="room-code-input" type="text" placeholder="Enter Room Code" />
+            <div id="generated-room-code" style="display: none;">
+                <span>Room Code: </span>
+                <span id="room-code"></span>
+                <button id="copy-btn">Copy</button>
             </div>
         </div>
     </div>
+
+    <!-- Call Page -->
+    <div id="call-page" style="display: none;">
+        <div id="call-notification" style="display: none;">Call is on</div>
+        <div id="call-controls">
+            <button id="mute-btn" class="control-button">Mute</button>
+            <button id="hangup-btn" class="control-button">Hangup</button>
+            <button id="speaker-btn" class="control-button">Speaker</button>
+        </div>
+    </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script src="client.js"></script>
 </body>
