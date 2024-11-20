@@ -3,33 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BY SOR</title>
-    <link rel="stylesheet" href="app.css">
+    <title>Video Call App</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- Room creation / joining -->
-    <div id="room-container">
-        <h1>BY SOR</h1>
-        <input id="room-code-input" type="text" placeholder="Enter Room Code" />
-        <div id="room-buttons">
-            <button id="create-room">Create Room</button>
-            <button id="join-room">Join Call</button>
+    <div id="landing-page">
+        <h1>Welcome to the Video Call App</h1>
+        <button id="create-room">Create Room</button>
+        <input type="text" id="room-code-input" placeholder="Enter Room Code" />
+        <button id="join-room">Join Room</button>
+        <p id="generated-room-code" style="display: none;"></p>
+    </div>
+
+    <div id="call-page" style="display: none;">
+        <div id="call-background">
+            <img src="https://i.imgur.com/ItfhkPw.jpeg" alt="Background" id="call-bg-img">
+            <div id="buttons">
+                <button id="mute-btn">Mute</button>
+                <button id="hangup-btn">Hang Up</button>
+                <button id="speaker-btn">Speaker Off</button>
+            </div>
         </div>
     </div>
-
-    <!-- Call controls (hidden initially) -->
-    <div id="call-controls" style="display: none;">
-        <button id="mute-button" class="control-button">
-            <i class="icon">🔇</i>
-        </button>
-        <button id="speaker-button" class="control-button">
-            <i class="icon">🔊</i>
-        </button>
-        <button id="hangup-button" class="control-button">
-            <i class="icon">📴</i>
-        </button>
-    </div>
-
     <script src="/socket.io/socket.io.js"></script>
     <script src="client.js"></script>
 </body>
