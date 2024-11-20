@@ -39,17 +39,17 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Handle WebRTC signaling (offer/answer)
+    // Handle WebRTC signaling
     socket.on('offer', ({ offer, room }) => {
-        socket.to(room).emit('offer', { offer, id: socket.id });
+        socket.to(room).emit('offer', { offer });
     });
 
     socket.on('answer', ({ answer, room }) => {
-        socket.to(room).emit('answer', { answer, id: socket.id });
+        socket.to(room).emit('answer', { answer });
     });
 
     socket.on('new-ice-candidate', ({ candidate, room }) => {
-        socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
+        socket.to(room).emit('new-ice-candidate', { candidate });
     });
 
     // Handle user disconnection
