@@ -1,6 +1,14 @@
-const muteButton = document.getElementById('muteToggle');
-const hangupButton = document.getElementById('hangup');
-const speakerButton = document.getElementById('speakerToggle');
+const createRoomButton = document.getElementById('create-room');
+const joinRoomButton = document.getElementById('join-room');
+const copyCodeButton = document.getElementById('copy-code');
+const roomCodeInput = document.getElementById('room-code-input');
+const generatedRoomCodeElement = document.getElementById('generated-room-code');
+const roomCodeContainer = document.getElementById('room-code-container');
+const callNotification = document.getElementById('call-notification');
+
+const muteButton = document.getElementById('mute-btn');
+const hangupButton = document.getElementById('hangup-btn');
+const speakerButton = document.getElementById('speaker-btn');
 
 let localStream = null;
 let peerConnection = null;
@@ -12,6 +20,38 @@ const socket = io.connect();
 const configuration = {
     iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 };
+
+// Function to create a unique room code
+function generateRoomCode() {
+    return Math.random().toString(36).substring(2, 10).toUpperCase();
+}
+
+// Handle room creation
+createRoomButton.addEventListener('click', () => {
+    const roomCode = generateRoomCode();
+    generatedRoomCodeElement.value = roomCode;
+    roomCodeContainer.style.display = 'block';
+});
+
+// Handle copying room code
+copyCodeButton.addEventListener('click', () => {
+    navigator.clipboard.writeText(generatedRoomCodeElement.value).then(() => {
+        alert('Room code copied to clipboard!');
+    });
+});
+
+// Handle joining a room
+joinRoomButton.addEventListener('click', () => {
+    const roomCode = roomCodeInput.value.trim();
+    if (roomCode) {
+        socket.emit('join-room', roomCode);
+        document.getElementById('landing-page').style.display = 'none';
+        document.getElementById('call-page').style.display = 'block';
+        startCall();
+    } else {
+        alert('Please enter a valid room code.');
+    }
+});
 
 // Initialize call
 async function startCall() {
@@ -36,14 +76,16 @@ async function startCall() {
         speakerButton.addEventListener('click', () => {
             isSpeakerMuted = !isSpeakerMuted;
             audioElement.muted = isSpeakerMuted;
-            speakerButton.querySelector('i').classList.toggle('fa-volume-mute', isSpeakerMuted);
-            speakerButton.querySelector('i').classList.toggle('fa-volume-up', !isSpeakerMuted);
+            updateSpeakerIcon(isSpeakerMuted);
         });
     };
 
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
     socket.emit('offer', offer);
+
+    // Display call notification
+    showCallNotification();
 }
 
 // Mute/unmute the microphone
@@ -51,8 +93,7 @@ muteButton.addEventListener('click', () => {
     if (localStream) {
         isMuted = !isMuted;
         localStream.getAudioTracks()[0].enabled = !isMuted;
-        muteButton.querySelector('i').classList.toggle('fa-microphone-slash', isMuted);
-        muteButton.querySelector('i').classList.toggle('fa-microphone', !isMuted);
+        updateMuteIcon(isMuted);
     }
 });
 
@@ -67,7 +108,35 @@ hangupButton.addEventListener('click', () => {
         localStream = null;
     }
     socket.emit('leave-call');
+    // Hide call notification
+    hideCallNotification();
 });
+
+// Update the mute button icon
+function updateMuteIcon(muted) {
+    const muteIcon = muteButton.querySelector('img');
+    muteIcon.src = muted
+        ? 'https://img.icons8.com/ios-filled/50/ffffff/mute.png'
+        : 'https://img.icons8.com/ios-filled/50/ffffff/microphone.png';
+}
+
+// Update the speaker button icon
+function updateSpeakerIcon(speakerMuted) {
+    const speakerIcon = speakerButton.querySelector('img');
+    speakerIcon.src = speakerMuted
+        ? 'https://img.icons8.com/ios-filled/50/ffffff/no-audio.png'
+        : 'https://img.icons8.com/ios-filled/50/ffffff/speaker.png';
+}
+
+// Show the "Call is ON" notification
+function showCallNotification() {
+    callNotification.style.display = 'block';
+}
+
+// Hide the "Call is ON" notification
+function hideCallNotification() {
+    callNotification.style.display = 'none';
+}
 
 // Socket.IO event handlers
 socket.on('offer', async (offer) => {
