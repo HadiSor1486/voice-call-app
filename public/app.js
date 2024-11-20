@@ -36,9 +36,8 @@ async function startCall() {
         speakerButton.addEventListener('click', () => {
             isSpeakerMuted = !isSpeakerMuted;
             audioElement.muted = isSpeakerMuted;
-            speakerButton.querySelector('img').src = isSpeakerMuted
-                ? 'https://img.icons8.com/ios-filled/50/ffffff/no-audio.png'
-                : 'https://img.icons8.com/ios-filled/50/ffffff/speaker.png';
+            speakerButton.querySelector('i').classList.toggle('fa-volume-mute', isSpeakerMuted);
+            speakerButton.querySelector('i').classList.toggle('fa-volume-up', !isSpeakerMuted);
         });
     };
 
@@ -52,9 +51,8 @@ muteButton.addEventListener('click', () => {
     if (localStream) {
         isMuted = !isMuted;
         localStream.getAudioTracks()[0].enabled = !isMuted;
-        muteButton.querySelector('img').src = isMuted
-            ? 'https://img.icons8.com/ios-filled/50/ffffff/no-microphone.png'
-            : 'https://img.icons8.com/ios-filled/50/ffffff/microphone.png';
+        muteButton.querySelector('i').classList.toggle('fa-microphone-slash', isMuted);
+        muteButton.querySelector('i').classList.toggle('fa-microphone', !isMuted);
     }
 });
 
