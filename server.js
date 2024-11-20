@@ -1,6 +1,20 @@
-const io = require('socket.io')(server);
+const express = require('express');
+const http = require('http');
+const socketIo = require('socket.io');
+
+// Create an Express application
+const app = express();
+
+// Create an HTTP server and pass it to socket.io
+const server = http.createServer(app);
+
+// Initialize socket.io with the server
+const io = socketIo(server);
 
 let rooms = {}; // Keep track of rooms and participants
+
+// Serve static files (if you need to serve your client-side code)
+app.use(express.static('public'));  // Adjust the directory as needed
 
 io.on('connection', (socket) => {
     console.log('New client connected', socket.id);
@@ -58,4 +72,10 @@ io.on('connection', (socket) => {
             }
         }
     });
+});
+
+// Set up the server to listen on a port
+const port = process.env.PORT || 3000;
+server.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
 });
