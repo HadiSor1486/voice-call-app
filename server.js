@@ -24,7 +24,7 @@ io.on('connection', (socket) => {
         rooms[room].push(socket.id);
         socket.join(room);
         console.log(`Room ${room} created or joined by ${socket.id}`);
-        socket.emit('room-created', room);
+        socket.emit('room-created', room); // Send back confirmation of room creation
     });
 
     // Handle 'join-room' event
@@ -32,7 +32,7 @@ io.on('connection', (socket) => {
         if (rooms[room]) {
             rooms[room].push(socket.id);
             socket.join(room);
-            socket.to(room).emit('user-joined', { id: socket.id });
+            socket.to(room).emit('user-joined', { id: socket.id }); // Notify others in the room
             console.log(`User ${socket.id} joined room ${room}`);
         } else {
             socket.emit('error', 'Room does not exist.');
@@ -41,15 +41,18 @@ io.on('connection', (socket) => {
 
     // Handle WebRTC signaling
     socket.on('offer', ({ offer, room }) => {
-        socket.to(room).emit('offer', { offer });
+        console.log(`Offer received in room ${room}`);
+        socket.to(room).emit('offer', { offer, id: socket.id });
     });
 
     socket.on('answer', ({ answer, room }) => {
-        socket.to(room).emit('answer', { answer });
+        console.log(`Answer received in room ${room}`);
+        socket.to(room).emit('answer', { answer, id: socket.id });
     });
 
     socket.on('new-ice-candidate', ({ candidate, room }) => {
-        socket.to(room).emit('new-ice-candidate', { candidate });
+        console.log(`ICE Candidate received in room ${room}`);
+        socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
     // Handle user disconnection

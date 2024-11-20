@@ -7,9 +7,6 @@ let peerConnection = null;
 let isMuted = false;
 let isSpeakerMuted = false;
 
-// Room context
-const ROOM_NAME = prompt("Enter the room code to join:");
-
 // Socket.IO client for signaling
 const socket = io.connect();
 const configuration = {
@@ -18,45 +15,35 @@ const configuration = {
 
 // Initialize call
 async function startCall() {
-    try {
-        // Get user media
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        peerConnection = new RTCPeerConnection(configuration);
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-        // Add tracks to the peer connection
-        localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
+    peerConnection = new RTCPeerConnection(configuration);
+    localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
 
-        // ICE Candidate handling
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('new-ice-candidate', { candidate: event.candidate, room: ROOM_NAME });
-            }
-        };
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit('new-ice-candidate', event.candidate);
+        }
+    };
 
-        // Handle remote stream
-        peerConnection.ontrack = (event) => {
-            const remoteStream = event.streams[0];
-            const audioElement = document.createElement('audio');
-            audioElement.srcObject = remoteStream;
-            audioElement.autoplay = true;
-            document.body.appendChild(audioElement);
+    peerConnection.ontrack = (event) => {
+        const [remoteStream] = event.streams;
+        const audioElement = new Audio();
+        audioElement.srcObject = remoteStream;
+        audioElement.autoplay = true;
 
-            // Speaker mute toggle
-            speakerButton.addEventListener('click', () => {
-                isSpeakerMuted = !isSpeakerMuted;
-                audioElement.muted = isSpeakerMuted;
-                speakerButton.querySelector('i').classList.toggle('fa-volume-mute', isSpeakerMuted);
-                speakerButton.querySelector('i').classList.toggle('fa-volume-up', !isSpeakerMuted);
-            });
-        };
+        // Toggle speaker mute
+        speakerButton.addEventListener('click', () => {
+            isSpeakerMuted = !isSpeakerMuted;
+            audioElement.muted = isSpeakerMuted;
+            speakerButton.querySelector('i').classList.toggle('fa-volume-mute', isSpeakerMuted);
+            speakerButton.querySelector('i').classList.toggle('fa-volume-up', !isSpeakerMuted);
+        });
+    };
 
-        // Create and send offer
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        socket.emit('offer', { offer, room: ROOM_NAME });
-    } catch (error) {
-        console.error('Error initializing call:', error);
-    }
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    socket.emit('offer', offer);
 }
 
 // Mute/unmute the microphone
@@ -79,38 +66,36 @@ hangupButton.addEventListener('click', () => {
         localStream.getTracks().forEach((track) => track.stop());
         localStream = null;
     }
-    socket.emit('leave-call', { room: ROOM_NAME });
-    alert("Call has been disconnected.");
+    socket.emit('leave-call');
 });
 
 // Socket.IO event handlers
-socket.on('offer', async ({ offer }) => {
+socket.on('offer', async (offer) => {
     if (!peerConnection) {
         peerConnection = new RTCPeerConnection(configuration);
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
-                socket.emit('new-ice-candidate', { candidate: event.candidate, room: ROOM_NAME });
+                socket.emit('new-ice-candidate', event.candidate);
             }
         };
         peerConnection.ontrack = (event) => {
-            const remoteStream = event.streams[0];
-            const audioElement = document.createElement('audio');
+            const [remoteStream] = event.streams;
+            const audioElement = new Audio();
             audioElement.srcObject = remoteStream;
             audioElement.autoplay = true;
-            document.body.appendChild(audioElement);
         };
     }
     await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
-    socket.emit('answer', { answer, room: ROOM_NAME });
+    socket.emit('answer', answer);
 });
 
-socket.on('answer', async ({ answer }) => {
+socket.on('answer', async (answer) => {
     await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
 });
 
-socket.on('new-ice-candidate', async ({ candidate }) => {
+socket.on('new-ice-candidate', async (candidate) => {
     try {
         await peerConnection.addIceCandidate(candidate);
     } catch (error) {
