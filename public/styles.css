@@ -86,7 +86,7 @@ button:focus {
 #call-controls {
     display: none;
     position: fixed;
-    bottom: 30px; /* Adjusted to place it lower */
+    bottom: 20px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -98,20 +98,13 @@ button:focus {
     background-color: rgba(0, 0, 0, 0.5);
     color: white;
     border-radius: 50%;
-    width: 60px;  /* Adjusted size */
-    height: 60px; /* Adjusted size */
+    width: 50px;
+    height: 50px;
     margin: 0 10px;
-    font-size: 24px;
-    border: none;
-    cursor: pointer;
 }
 
 .control-button:hover {
     background-color: rgba(255, 255, 255, 0.3);
-}
-
-.control-button:focus {
-    outline: none;
 }
 
 /* Call notification */
@@ -126,47 +119,4 @@ button:focus {
     font-weight: bold;
     border-radius: 10px;
     display: none;
-}
-
-/* New Button Positioning at the Bottom Center */
-#buttons {
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    justify-content: space-between;
-    width: 300px; /* Adjust width as needed */
-    padding: 10px;
-}
-
-button {
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    border-radius: 50%;
-    width: 60px;
-    height: 60px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 24px;
-    border: none;
-    cursor: pointer;
-}
-
-button:hover {
-    background-color: rgba(255, 255, 255, 0.3);
-}
-
-button:focus {
-    outline: none;
-}
-
-/* Align Buttons in Specific Order */
-#muteToggle {
-    margin-right: auto; /* Align left */
-}
-
-#hangup {
-    margin-left: auto; /* Align right */
 }
