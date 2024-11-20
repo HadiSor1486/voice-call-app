@@ -1,122 +1,120 @@
-const socket = io.connect();
+const socket = io();
 
-// Elements
-const createRoomButton = document.getElementById('create-room');
-const joinRoomButton = document.getElementById('join-room');
-const roomCodeInput = document.getElementById('room-code-input');
-const generatedRoomCodeInput = document.getElementById('generated-room-code');
-const copyCodeButton = document.getElementById('copy-code');
-const roomCodeContainer = document.getElementById('room-code-container');
+// Landing Page Elements
 const landingPage = document.getElementById('landing-page');
+const createRoomBtn = document.getElementById('create-room');
+const joinRoomBtn = document.getElementById('join-room');
+const roomCodeInput = document.getElementById('room-code-input');
+const generatedRoomCode = document.getElementById('generated-room-code');
+
+// Call Page Elements
 const callPage = document.getElementById('call-page');
-const callNotification = document.getElementById('call-notification');
-const participantsDiv = document.getElementById('participants');
+const muteBtn = document.getElementById('mute-btn');
+const hangupBtn = document.getElementById('hangup-btn');
+const speakerBtn = document.getElementById('speaker-btn');
 
-// Call control buttons
-const muteButton = document.getElementById('mute-btn');
-const hangupButton = document.getElementById('hangup-btn');
-const speakerButton = document.getElementById('speaker-btn');
+let localStream;
+let peerConnection;
+let currentRoom;
 
-// Variables to control audio
-let isMuted = false;
-let isSpeakerOn = true;
+// Ice server configuration
+const iceServers = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }
+    ]
+};
 
-// Room creation
-createRoomButton.addEventListener('click', () => {
-    socket.emit('create-room'); // Emit create room event to the server
+// Handle room creation
+createRoomBtn.addEventListener('click', () => {
+    const roomCode = Math.random().toString(36).substring(2, 8);
+    generatedRoomCode.style.display = 'block';
+    generatedRoomCode.textContent = `Room Code: ${roomCode}`;
+    currentRoom = roomCode;
+    socket.emit('create-room', roomCode);
 });
 
-// Room joining
-joinRoomButton.addEventListener('click', () => {
-    const roomCode = roomCodeInput.value;
-    if (roomCode) {
-        socket.emit('join-room', roomCode); // Emit join room event with the room code
+// Handle joining a room
+joinRoomBtn.addEventListener('click', () => {
+    const roomCode = roomCodeInput.value.trim();
+    if (!roomCode) return alert('Please enter a room code.');
+    currentRoom = roomCode;
+    socket.emit('join-room', roomCode);
+    showCallPage();
+});
+
+// Show call page
+function showCallPage() {
+    landingPage.style.display = 'none';
+    callPage.style.display = 'block';
+    startCall();
+}
+
+// Handle WebRTC connection
+function startCall() {
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then((stream) => {
+        localStream = stream;
+        peerConnection = new RTCPeerConnection(iceServers);
+
+        // Add local stream to the connection
+        localStream.getTracks().forEach((track) => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('new-ice-candidate', {
+                    candidate: event.candidate,
+                    room: currentRoom
+                });
+            }
+        };
+
+        peerConnection.ontrack = (event) => {
+            const audio = document.createElement('audio');
+            audio.srcObject = event.streams[0];
+            audio.autoplay = true;
+            document.body.appendChild(audio);
+        };
+
+        socket.on('offer', async ({ offer }) => {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            socket.emit('answer', { answer, room: currentRoom });
+        });
+
+        socket.on('answer', async ({ answer }) => {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        });
+
+        socket.on('new-ice-candidate', ({ candidate }) => {
+            peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        });
+
+        peerConnection.createOffer().then((offer) => {
+            peerConnection.setLocalDescription(offer);
+            socket.emit('offer', { offer, room: currentRoom });
+        });
+    });
+}
+
+// Mute functionality
+muteBtn.addEventListener('click', () => {
+    localStream.getAudioTracks()[0].enabled = !localStream.getAudioTracks()[0].enabled;
+    muteBtn.textContent = localStream.getAudioTracks()[0].enabled ? 'Mute' : 'Unmute';
+});
+
+// Speaker mute functionality
+speakerBtn.addEventListener('click', () => {
+    const audio = document.querySelector('audio');
+    if (audio) {
+        audio.muted = !audio.muted;
+        speakerBtn.textContent = audio.muted ? 'Speaker On' : 'Speaker Off';
     }
 });
 
-// Copy generated room code
-copyCodeButton.addEventListener('click', () => {
-    generatedRoomCodeInput.select();
-    document.execCommand('copy');
+// Hangup functionality
+hangupBtn.addEventListener('click', () => {
+    peerConnection.close();
+    location.reload();
 });
-
-// Mute/unmute button logic
-muteButton.addEventListener('click', () => {
-    isMuted = !isMuted;
-    socket.emit('mute', isMuted); // Emit mute/unmute event to the server
-    updateMuteButton();
-});
-
-// Speaker mute/unmute button logic
-speakerButton.addEventListener('click', () => {
-    isSpeakerOn = !isSpeakerOn;
-    socket.emit('speaker', isSpeakerOn); // Emit speaker toggle event to the server
-    updateSpeakerButton();
-});
-
-// Hang up button logic
-hangupButton.addEventListener('click', () => {
-    socket.emit('hangup'); // Emit hangup event to the server
-    endCall();
-});
-
-// Listen for room code from server (when creating room)
-socket.on('room-created', (roomCode) => {
-    generatedRoomCodeInput.value = roomCode;
-    roomCodeContainer.style.display = 'block';
-    landingPage.style.display = 'none'; // Hide the landing page
-    callPage.style.display = 'block'; // Show the call page
-});
-
-// Listen for errors (invalid room codes, etc.)
-socket.on('error', (message) => {
-    alert(message);
-});
-
-// Handle room join success
-socket.on('room-joined', () => {
-    landingPage.style.display = 'none';
-    callPage.style.display = 'block';
-});
-
-// Call started (other user has joined)
-socket.on('call-started', () => {
-    callNotification.style.display = 'block'; // Show "Call is ON" notification
-    participantsDiv.innerHTML = 'You are in the room!'; // Update participants
-});
-
-// Handle mute/unmute
-socket.on('mute-status', (status) => {
-    isMuted = status;
-    updateMuteButton();
-});
-
-// Handle speaker on/off
-socket.on('speaker-status', (status) => {
-    isSpeakerOn = status;
-    updateSpeakerButton();
-});
-
-// Update mute/unmute button icon based on status
-function updateMuteButton() {
-    const icon = isMuted
-        ? 'https://img.icons8.com/ios-filled/50/ffffff/microphone-slash.png' // Mute icon
-        : 'https://img.icons8.com/ios-filled/50/ffffff/microphone.png'; // Unmute icon
-    muteButton.querySelector('img').src = icon;
-}
-
-// Update speaker on/off button icon based on status
-function updateSpeakerButton() {
-    const icon = isSpeakerOn
-        ? 'https://img.icons8.com/ios-filled/50/ffffff/speaker.png' // Speaker on icon
-        : 'https://img.icons8.com/ios-filled/50/ffffff/speaker-slash.png'; // Speaker off icon
-    speakerButton.querySelector('img').src = icon;
-}
-
-// End call logic
-function endCall() {
-    landingPage.style.display = 'block';
-    callPage.style.display = 'none';
-    callNotification.style.display = 'none'; // Hide call notification
-    participantsDiv.innerHTML = ''; // Clear participants info
-}
