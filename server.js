@@ -56,7 +56,15 @@ io.on('connection', (socket) => {
     });
 
     // Handle user disconnection
+    
+    socket.on('leave-call', ({ room }) => {
+        if (rooms[room]) {
+            rooms[room].forEach((id) => io.to(id).emit('call-ended'));
+            delete rooms[room];
+        }
+    });
     socket.on('disconnect', () => {
+    
         console.log(`User ${socket.id} disconnected`);
         for (const room in rooms) {
             const index = rooms[room].indexOf(socket.id);

@@ -27,7 +27,18 @@ const iceServers = {
 // Handle room creation
 createRoomBtn.addEventListener('click', () => {
     const roomCode = Math.random().toString(36).substring(2, 8);
+    
     generatedRoomCode.style.display = 'block';
+    const copyBtn = document.createElement('button');
+    copyBtn.textContent = 'Copy';
+    copyBtn.style.marginLeft = '10px';
+    copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(roomCode).then(() => {
+            alert('Room code copied to clipboard!');
+        });
+    });
+    generatedRoomCode.appendChild(copyBtn);
+    
     generatedRoomCode.textContent = `Room Code: ${roomCode}`;
     currentRoom = roomCode;
     socket.emit('create-room', roomCode);
@@ -108,7 +119,10 @@ muteBtn.addEventListener('click', () => {
 speakerBtn.addEventListener('click', () => {
     const audio = document.querySelector('audio');
     if (audio) {
-        audio.muted = !audio.muted;
+        
+    audio.muted = !audio.muted;
+    speakerBtn.textContent = audio.muted ? 'Speaker On' : 'Speaker Off';
+    
         speakerBtn.textContent = audio.muted ? 'Speaker On' : 'Speaker Off';
     }
 });
@@ -116,5 +130,8 @@ speakerBtn.addEventListener('click', () => {
 // Hangup functionality
 hangupBtn.addEventListener('click', () => {
     peerConnection.close();
+    
+    socket.emit('leave-call', { room: currentRoom });
     location.reload();
+    
 });

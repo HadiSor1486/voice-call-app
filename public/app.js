@@ -26,7 +26,11 @@ async function startCall() {
         }
     };
 
+    
     peerConnection.ontrack = (event) => {
+        document.getElementById('call-notification').style.display = 'block';
+        document.getElementById('call-notification').textContent = 'Call is on';
+    
         const [remoteStream] = event.streams;
         const audioElement = new Audio();
         audioElement.srcObject = remoteStream;
@@ -66,7 +70,10 @@ hangupButton.addEventListener('click', () => {
         localStream.getTracks().forEach((track) => track.stop());
         localStream = null;
     }
-    socket.emit('leave-call');
+    
+    socket.emit('leave-call', { room: currentRoom });
+    document.getElementById('call-notification').style.display = 'none';
+    
 });
 
 // Socket.IO event handlers
@@ -78,7 +85,11 @@ socket.on('offer', async (offer) => {
                 socket.emit('new-ice-candidate', event.candidate);
             }
         };
-        peerConnection.ontrack = (event) => {
+        
+    peerConnection.ontrack = (event) => {
+        document.getElementById('call-notification').style.display = 'block';
+        document.getElementById('call-notification').textContent = 'Call is on';
+    
             const [remoteStream] = event.streams;
             const audioElement = new Audio();
             audioElement.srcObject = remoteStream;
