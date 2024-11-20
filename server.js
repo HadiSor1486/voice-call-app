@@ -1,60 +1,76 @@
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
+const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = new Server(server);
 
-let rooms = {};
-
+// Serve static files
 app.use(express.static('public'));
 
-// Handle room creation
+// Rooms data structure
+const rooms = {};
+
+// Handle WebSocket connections
 io.on('connection', (socket) => {
-    socket.on('create-room', (roomCode) => {
-        rooms[roomCode] = { host: socket.id, users: [socket.id] };
-        socket.emit('room-created', roomCode);
-    });
+    console.log('New user connected:', socket.id);
 
-    // Handle room joining
-    socket.on('join-room', (roomCode) => {
-        if (!rooms[roomCode]) {
-            socket.emit('error', 'Room not found');
-            return;
+    // Handle 'create-room' event
+    socket.on('create-room', (room) => {
+        if (!rooms[room]) {
+            rooms[room] = [];
         }
-        rooms[roomCode].users.push(socket.id);
-        socket.join(roomCode);
-        io.to(roomCode).emit('room-joined');
+        rooms[room].push(socket.id);
+        socket.join(room);
+        console.log(`Room ${room} created or joined by ${socket.id}`);
+        socket.emit('room-created', room);
     });
 
-    // Handle signaling messages
-    socket.on('call', (data) => {
-        const room = rooms[data.room];
-        if (!room) return;
-        room.users.forEach(userId => {
-            if (userId !== socket.id) {
-                io.to(userId).emit('call-on');
-            }
-        });
+    // Handle 'join-room' event
+    socket.on('join-room', (room) => {
+        if (rooms[room]) {
+            rooms[room].push(socket.id);
+            socket.join(room);
+            socket.to(room).emit('user-joined', { id: socket.id });
+            console.log(`User ${socket.id} joined room ${room}`);
+        } else {
+            socket.emit('error', 'Room does not exist.');
+        }
     });
 
-    // Handle ICE candidate
-    socket.on('new-ice-candidate', (data) => {
-        io.to(data.room).emit('new-ice-candidate', data);
+    // Handle WebRTC signaling (offer/answer)
+    socket.on('offer', ({ offer, room }) => {
+        socket.to(room).emit('offer', { offer, id: socket.id });
     });
 
-    // Handle hangup
-    socket.on('hangup', (roomCode) => {
-        io.to(roomCode).emit('hangup');
-        socket.leave(roomCode);
+    socket.on('answer', ({ answer, room }) => {
+        socket.to(room).emit('answer', { answer, id: socket.id });
     });
 
+    socket.on('new-ice-candidate', ({ candidate, room }) => {
+        socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
+    });
+
+    // Handle user disconnection
     socket.on('disconnect', () => {
-        // Handle user disconnect
+        console.log(`User ${socket.id} disconnected`);
+        for (const room in rooms) {
+            const index = rooms[room].indexOf(socket.id);
+            if (index !== -1) {
+                rooms[room].splice(index, 1);
+                socket.to(room).emit('user-left', { id: socket.id });
+                if (rooms[room].length === 0) {
+                    delete rooms[room];
+                }
+                break;
+            }
+        }
     });
 });
 
-server.listen(3000, () => {
-    console.log('Server running on port 3000');
+// Start the server
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
 });

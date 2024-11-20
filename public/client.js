@@ -1,99 +1,101 @@
 const socket = io();
 
-// Landing Page Elements
-const landingPage = document.getElementById('landing-page');
-const createRoomBtn = document.getElementById('create-room');
-const joinRoomBtn = document.getElementById('join-room');
-const roomCodeInput = document.getElementById('room-code-input');
-const generatedRoomCode = document.getElementById('generated-room-code');
-const roomCodeText = document.getElementById('room-code');
-const copyBtn = document.getElementById('copy-btn');
-
-// Call Page Elements
-const callPage = document.getElementById('call-page');
-const muteBtn = document.getElementById('mute-btn');
-const hangupBtn = document.getElementById('hangup-btn');
-const speakerBtn = document.getElementById('speaker-btn');
-const callNotification = document.getElementById('call-notification');
-
 let localStream;
 let peerConnection;
-let currentRoom;
+let currentRoom = null;
 
-// Ice server configuration
-const iceServers = {
-    iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'turn:your-turn-server.com', username: 'username', credential: 'password' }
-    ]
-};
+const createRoomBtn = document.getElementById('createRoomBtn');
+const joinRoomBtn = document.getElementById('joinRoomBtn');
+const muteBtn = document.getElementById('muteBtn');
+const hangupBtn = document.getElementById('hangupBtn');
+const speakerBtn = document.getElementById('speakerBtn');
+const roomCodeInput = document.getElementById('roomCode');
+const copyCodeBtn = document.getElementById('copyCodeBtn');
+const landingPage = document.getElementById('landing-page');
+const callPage = document.getElementById('call-page');
+const hostNameElem = document.getElementById('host-name');
+const usersInRoomElem = document.getElementById('users-in-room');
+const callNotification = document.getElementById('call-notification');
 
-// Handle room creation
+// Create room
 createRoomBtn.addEventListener('click', () => {
-    const roomCode = Math.random().toString(36).substring(2, 8);
-    generatedRoomCode.style.display = 'block';
-    roomCodeText.textContent = roomCode;
+    const roomCode = generateRoomCode();
     currentRoom = roomCode;
     socket.emit('create-room', roomCode);
+    roomCodeInput.value = roomCode;
+    roomCodeInput.style.display = 'block';
+    copyCodeBtn.style.display = 'inline-block';
+    landingPage.style.display = 'none';
 });
 
-// Handle copying room code
-copyBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(roomCodeText.textContent).then(() => {
+// Join room
+joinRoomBtn.addEventListener('click', () => {
+    const roomCode = prompt('Enter Room Code');
+    if (roomCode) {
+        currentRoom = roomCode;
+        socket.emit('join-room', roomCode);
+    }
+});
+
+// Copy room code to clipboard
+copyCodeBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(roomCodeInput.value).then(() => {
         alert('Room code copied!');
     });
 });
 
-// Handle joining a room
-joinRoomBtn.addEventListener('click', () => {
-    const roomCode = roomCodeInput.value.trim();
-    if (!roomCode) return alert('Please enter a room code.');
-    currentRoom = roomCode;
-    socket.emit('join-room', roomCode);
+// Handle socket events
+socket.on('room-created', (roomCode) => {
     showCallPage();
 });
 
-// Show call page
+socket.on('room-joined', () => {
+    showCallPage();
+});
+
+socket.on('user-joined', (data) => {
+    addUserToRoom(data.id);
+});
+
+socket.on('user-left', (data) => {
+    removeUserFromRoom(data.id);
+});
+
 function showCallPage() {
     landingPage.style.display = 'none';
     callPage.style.display = 'block';
-    startCall();
+    hostNameElem.textContent = `Host: ${socket.id}`;
+    usersInRoomElem.textContent = 'Users in room: ' + currentRoom;
 }
 
-// Handle WebRTC connection
-function startCall() {
-    navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then((stream) => {
-        localStream = stream;
-        peerConnection = new RTCPeerConnection(iceServers);
+// Generate a random room code
+function generateRoomCode() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
 
-        localStream.getTracks().forEach((track) => {
-            peerConnection.addTrack(track, localStream);
-        });
+// Add user to room display
+function addUserToRoom(userId) {
+    const userElem = document.createElement('p');
+    userElem.textContent = `User: ${userId}`;
+    usersInRoomElem.appendChild(userElem);
+}
 
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('new-ice-candidate', { candidate: event.candidate, room: currentRoom });
-            }
-        };
-
-        peerConnection.ontrack = (event) => {
-            const audio = document.createElement('audio');
-            audio.srcObject = event.streams[0];
-            audio.play();
-        };
-
-        // Send offer to join
-        socket.emit('call', { room: currentRoom });
-    }).catch((err) => {
-        console.error('Failed to get media: ', err);
-    });
+// Remove user from room display
+function removeUserFromRoom(userId) {
+    const userElems = usersInRoomElem.getElementsByTagName('p');
+    for (const userElem of userElems) {
+        if (userElem.textContent === `User: ${userId}`) {
+            userElem.remove();
+            break;
+        }
+    }
 }
 
 // Handle mute/unmute button
 muteBtn.addEventListener('click', () => {
     const audioTrack = localStream.getTracks().find(track => track.kind === 'audio');
     audioTrack.enabled = !audioTrack.enabled;
-    muteBtn.textContent = audioTrack.enabled ? 'Mute' : 'Unmute';
+    muteBtn.innerHTML = `<img src="${audioTrack.enabled ? 'mute-icon.png' : 'unmute-icon.png'}" alt="Mute">`;
 });
 
 // Handle speaker button
@@ -102,7 +104,7 @@ speakerBtn.addEventListener('click', () => {
     audioTracks.forEach(track => {
         track.enabled = !track.enabled;
     });
-    speakerBtn.textContent = audioTracks.some(track => track.enabled) ? 'Speaker On' : 'Speaker Off';
+    speakerBtn.innerHTML = `<img src="${audioTracks.some(track => track.enabled) ? 'speaker-on-icon.png' : 'speaker-off-icon.png'}" alt="Speaker">`;
 });
 
 // Handle hangup button
@@ -111,7 +113,7 @@ hangupBtn.addEventListener('click', () => {
     hangupCall();
 });
 
-// Hang up the call for both users
+// Hang up the call
 function hangupCall() {
     localStream.getTracks().forEach(track => track.stop());
     peerConnection.close();
@@ -129,18 +131,15 @@ socket.on('call-on', () => {
     }, 3000);
 });
 
-// Handle peer connection
+// Signaling (Offer, Answer, ICE candidates)
+socket.on('offer', (data) => {
+    // Handle the offer and set up the peer connection
+});
+
+socket.on('answer', (data) => {
+    // Handle the answer
+});
+
 socket.on('new-ice-candidate', (data) => {
-    const candidate = new RTCIceCandidate(data.candidate);
-    peerConnection.addIceCandidate(candidate);
-});
-
-// Handle room creation and joining
-socket.on('room-created', (roomCode) => {
-    console.log(`Room created: ${roomCode}`);
-});
-
-socket.on('room-joined', () => {
-    console.log(`Room joined: ${currentRoom}`);
-    showCallPage();
+    // Add ICE candidate
 });

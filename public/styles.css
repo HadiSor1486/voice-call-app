@@ -11,6 +11,7 @@ body {
     align-items: center;
 }
 
+/* Container for Centering */
 .container {
     display: flex;
     justify-content: center;
@@ -19,6 +20,7 @@ body {
     flex-direction: column;
 }
 
+/* Heading */
 h1 {
     color: white;
     font-size: 32px;
@@ -134,4 +136,17 @@ button:focus {
     font-weight: bold;
     border-radius: 10px;
     display: none;
+}
+
+/* Button icons for call control */
+#mute-btn, #unmute-btn {
+    background-image: url('path/to/mute-icon.png'); /* Replace with actual icon path */
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+
+#speaker-btn, #speaker-off-btn {
+    background-image: url('path/to/speaker-icon.png'); /* Replace with actual icon path */
+    background-size: contain;
+    background-repeat: no-repeat;
 }

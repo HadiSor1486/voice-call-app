@@ -9,26 +9,31 @@
 <body>
     <!-- Landing Page -->
     <div id="landing-page">
-        <h1>BY SOR</h1>
-        <div id="room-container">
-            <button id="create-room">Create Room</button>
-            <button id="join-room">Join Room</button>
-            <input id="room-code-input" type="text" placeholder="Enter Room Code" />
-            <div id="generated-room-code" style="display: none;">
-                <span>Room Code: </span>
-                <span id="room-code"></span>
-                <button id="copy-btn">Copy</button>
-            </div>
+        <div id="create-room">
+            <button class="btn" id="createRoomBtn">Create Room</button>
+        </div>
+        <div id="join-room">
+            <button class="btn" id="joinRoomBtn">Join Room</button>
+        </div>
+        <div id="room-code-container" style="display: none;">
+            <input type="text" id="roomCode" readonly>
+            <button id="copyCodeBtn">Copy Code</button>
         </div>
     </div>
 
     <!-- Call Page -->
     <div id="call-page" style="display: none;">
-        <div id="call-notification" style="display: none;">Call is on</div>
+        <div id="user-info">
+            <p id="host-name"></p>
+            <p id="users-in-room"></p>
+        </div>
         <div id="call-controls">
-            <button id="mute-btn" class="control-button">Mute</button>
-            <button id="hangup-btn" class="control-button">Hangup</button>
-            <button id="speaker-btn" class="control-button">Speaker</button>
+            <button id="muteBtn" class="call-button">Mute</button>
+            <button id="hangupBtn" class="call-button">Hang Up</button>
+            <button id="speakerBtn" class="call-button">Speaker</button>
+        </div>
+        <div id="call-notification" style="display: none;">
+            <p>Call is on</p>
         </div>
     </div>
 
