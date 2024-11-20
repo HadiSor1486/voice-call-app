@@ -32,7 +32,7 @@ io.on('connection', (socket) => {
         if (rooms[room]) {
             rooms[room].push(socket.id);
             socket.join(room);
-            socket.to(room).emit('user-joined', { id: socket.id }); // Notify others in the room
+            socket.to(room).emit('call-started'); // Notify others in the room
             console.log(`User ${socket.id} joined room ${room}`);
         } else {
             socket.emit('error', 'Room does not exist.');
@@ -56,21 +56,13 @@ io.on('connection', (socket) => {
     });
 
     // Handle user disconnection
-    
-    socket.on('leave-call', ({ room }) => {
-        if (rooms[room]) {
-            rooms[room].forEach((id) => io.to(id).emit('call-ended'));
-            delete rooms[room];
-        }
-    });
     socket.on('disconnect', () => {
-    
         console.log(`User ${socket.id} disconnected`);
         for (const room in rooms) {
             const index = rooms[room].indexOf(socket.id);
             if (index !== -1) {
                 rooms[room].splice(index, 1);
-                socket.to(room).emit('user-left', { id: socket.id });
+                socket.to(room).emit('call-ended'); // Notify the room that the call has ended
                 if (rooms[room].length === 0) {
                     delete rooms[room];
                 }

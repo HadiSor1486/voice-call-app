@@ -27,7 +27,7 @@ const iceServers = {
 // Handle room creation
 createRoomBtn.addEventListener('click', () => {
     const roomCode = Math.random().toString(36).substring(2, 8);
-    
+
     generatedRoomCode.style.display = 'block';
     const copyBtn = document.createElement('button');
     copyBtn.textContent = 'Copy';
@@ -38,7 +38,7 @@ createRoomBtn.addEventListener('click', () => {
         });
     });
     generatedRoomCode.appendChild(copyBtn);
-    
+
     generatedRoomCode.textContent = `Room Code: ${roomCode}`;
     currentRoom = roomCode;
     socket.emit('create-room', roomCode);
@@ -119,10 +119,7 @@ muteBtn.addEventListener('click', () => {
 speakerBtn.addEventListener('click', () => {
     const audio = document.querySelector('audio');
     if (audio) {
-        
-    audio.muted = !audio.muted;
-    speakerBtn.textContent = audio.muted ? 'Speaker On' : 'Speaker Off';
-    
+        audio.muted = !audio.muted;
         speakerBtn.textContent = audio.muted ? 'Speaker On' : 'Speaker Off';
     }
 });
@@ -130,8 +127,20 @@ speakerBtn.addEventListener('click', () => {
 // Hangup functionality
 hangupBtn.addEventListener('click', () => {
     peerConnection.close();
-    
     socket.emit('leave-call', { room: currentRoom });
     location.reload();
-    
+});
+
+// Socket.IO Event Handlers
+socket.on('call-started', () => {
+    const callNotification = document.getElementById('call-notification');
+    callNotification.style.display = 'block';
+    callNotification.textContent = 'Call is on';
+});
+
+socket.on('call-ended', () => {
+    const callNotification = document.getElementById('call-notification');
+    callNotification.style.display = 'none';
+    alert('Call has ended.');
+    location.reload();
 });

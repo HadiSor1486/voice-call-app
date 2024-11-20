@@ -3,31 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Call App</title>
+    <title>Voice Call App</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <div id="landing-page">
         <h1>By Sor</h1>
         <button id="create-room">Create Room</button>
-        <input type="text" id="room-code-input" placeholder="Enter Room Code" />
+        <input type="text" id="room-code-input" placeholder="Enter Room Code">
         <button id="join-room">Join Room</button>
-        
-    <p id="generated-room-code" style="display: none;"></p>
-    <div id="call-notification" style="display: none;">Call is on</div>
-    
+        <p id="generated-room-code" style="display: none;"></p>
     </div>
 
     <div id="call-page" style="display: none;">
-        <div id="call-background">
-            <img src="https://i.imgur.com/ItfhkPw.jpeg" alt="Background" id="call-bg-img">
-            <div id="buttons">
-                <button id="mute-btn">Mute</button>
-                <button id="hangup-btn">Hang Up</button>
-                <button id="speaker-btn">Speaker Off</button>
-            </div>
+        <div id="call-notification" style="display: none;">Call is on</div>
+        <div id="buttons">
+            <button id="mute-btn"><i class="fas fa-microphone"></i></button>
+            <button id="hangup-btn"><i class="fas fa-phone-slash"></i></button>
+            <button id="speaker-btn"><i class="fas fa-volume-up"></i></button>
         </div>
     </div>
+
     <script src="/socket.io/socket.io.js"></script>
     <script src="client.js"></script>
 </body>
