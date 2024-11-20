@@ -1,121 +1,94 @@
-/* General Styles */
-body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background-image: url('https://i.imgur.com/ItfhkPw.jpeg');
-    background-size: cover;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-}
+/* Previous styles remain the same */
 
-/* Container for Centering */
-.container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-    flex-direction: column;
-}
-
-/* Heading */
-h1 {
+/* Call Notification Styling */
+#call-notification {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.7);
     color: white;
-    font-size: 32px;
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-/* Buttons Styling */
-button {
-    padding: 10px 20px;
-    font-size: 16px;
-    cursor: pointer;
-    border: none;
-    margin: 5px;
+    padding: 20px 40px;
+    font-size: 24px;
     border-radius: 10px;
+    z-index: 1000;
 }
 
-button:hover {
+/* Room Code Container */
+#generated-room-code-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+#generated-room-code {
+    color: white;
+    margin-right: 10px;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 5px 10px;
+    border-radius: 5px;
+}
+
+#copy-room-code {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#copy-room-code:hover {
     background-color: rgba(255, 255, 255, 0.3);
 }
 
-button:focus {
-    outline: none;
-}
-
-/* Room Input and Buttons Styling */
-#room-code-input {
-    padding: 10px;
-    font-size: 16px;
-    margin-bottom: 20px;
-    width: 200px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    text-align: center;
-}
-
-/* Create room and join room buttons */
-#join-room, #create-room {
-    background-color: #4CAF50;
+/* Button Icons */
+#buttons button {
+    background-color: rgba(0, 0, 0, 0.5);
     color: white;
-    font-weight: bold;
-}
-
-#join-room {
-    background-color: #2196F3;
-}
-
-#join-room:hover, #create-room:hover {
-    background-color: #45a049;
-}
-
-/* Copy Button */
-#copy-btn {
-    background-color: #2196F3;
-    color: white;
-    font-size: 14px;
-    margin-left: 10px;
-}
-
-/* Call Controls */
-#buttons {
+    border: none;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
     display: flex;
     justify-content: center;
-    margin-top: 20px;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
 }
 
-button i {
-    font-size: 30px;
-    color: white;
+#buttons button i {
+    font-size: 24px;
 }
 
-button#mute-btn i {
-    color: green;
+#buttons button:hover {
+    background-color: rgba(255, 255, 255, 0.3);
 }
 
-button#speaker-btn i {
-    color: green;
+/* Mute and Hangup specific styles */
+#mute-btn .fa-microphone-slash,
+#hangup-btn .fa-phone-slash {
+    color: red;
 }
 
-button#hangup-btn {
-    background-color: red;
-    color: white;
-    border-radius: 50%;
-    padding: 15px;
-}
+/* Responsive Design */
+@media (max-width: 600px) {
+    #buttons {
+        width: 250px;
+    }
 
-/* Call notification */
-#call-notification {
-    position: fixed;
-    top: 20px;
-    width: 100%;
-    text-align: center;
-    font-size: 20px;
-    color: white;
-    background-color: rgba(0, 0, 0, 0.5);
-    padding: 10px;
-    display: none;
+    #buttons button {
+        width: 50px;
+        height: 50px;
+    }
+
+    #buttons button i {
+        font-size: 20px;
+    }
 }

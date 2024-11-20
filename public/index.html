@@ -5,26 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voice Call App</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
     <div id="landing-page">
         <h1>By Sor</h1>
         <button id="create-room">Create Room</button>
-        <input type="text" id="room-code-input" placeholder="Enter Room Code">
-        <button id="join-room">Join Room</button>
-        <p id="generated-room-code" style="display: none;"></p>
-    </div>
-
-    <div id="call-page" style="display: none;">
-        <div id="call-notification" style="display: none;">Call is on</div>
-        <div id="buttons">
-            <button id="mute-btn"><i class="fas fa-microphone"></i></button>
-            <button id="hangup-btn"><i class="fas fa-phone-slash"></i></button>
-            <button id="speaker-btn"><i class="fas fa-volume-up"></i></button>
+        <div id="room-code-container">
+            <input type="text" id="room-code-input" placeholder="Enter Room Code" />
+            <button id="join-room">Join Room</button>
+        </div>
+        <div id="generated-room-code-container">
+            <p id="generated-room-code" style="display: none;"></p>
+            <button id="copy-room-code" style="display: none;"><i class="fas fa-copy"></i></button>
         </div>
     </div>
 
+    <div id="call-page" style="display: none;">
+        <div id="call-background">
+            <div id="call-notification" style="display: none;">Call is On</div>
+            <img src="https://i.imgur.com/ItfhkPw.jpeg" alt="Background" id="call-bg-img">
+            <div id="buttons">
+                <button id="mute-btn"><i class="fas fa-microphone"></i></button>
+                <button id="hangup-btn"><i class="fas fa-phone-slash"></i></button>
+                <button id="speaker-btn"><i class="fas fa-volume-up"></i></button>
+            </div>
+        </div>
+    </div>
     <script src="/socket.io/socket.io.js"></script>
     <script src="client.js"></script>
 </body>

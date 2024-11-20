@@ -6,12 +6,14 @@ const createRoomBtn = document.getElementById('create-room');
 const joinRoomBtn = document.getElementById('join-room');
 const roomCodeInput = document.getElementById('room-code-input');
 const generatedRoomCode = document.getElementById('generated-room-code');
+const copyRoomCodeBtn = document.getElementById('copy-room-code');
 
 // Call Page Elements
 const callPage = document.getElementById('call-page');
 const muteBtn = document.getElementById('mute-btn');
 const hangupBtn = document.getElementById('hangup-btn');
 const speakerBtn = document.getElementById('speaker-btn');
+const callNotification = document.getElementById('call-notification');
 
 let localStream;
 let peerConnection;
@@ -24,22 +26,19 @@ const iceServers = {
     ]
 };
 
+// Copy Room Code Functionality
+copyRoomCodeBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(currentRoom).then(() => {
+        alert('Room code copied!');
+    });
+});
+
 // Handle room creation
 createRoomBtn.addEventListener('click', () => {
     const roomCode = Math.random().toString(36).substring(2, 8);
-
     generatedRoomCode.style.display = 'block';
-    const copyBtn = document.createElement('button');
-    copyBtn.textContent = 'Copy';
-    copyBtn.style.marginLeft = '10px';
-    copyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(roomCode).then(() => {
-            alert('Room code copied to clipboard!');
-        });
-    });
-    generatedRoomCode.appendChild(copyBtn);
-
     generatedRoomCode.textContent = `Room Code: ${roomCode}`;
+    copyRoomCodeBtn.style.display = 'inline-block';
     currentRoom = roomCode;
     socket.emit('create-room', roomCode);
 });
@@ -102,6 +101,10 @@ function startCall() {
             peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
         });
 
+        // Show call notification when room is joined
+        socket.emit('room-joined', currentRoom);
+        callNotification.style.display = 'block';
+
         peerConnection.createOffer().then((offer) => {
             peerConnection.setLocalDescription(offer);
             socket.emit('offer', { offer, room: currentRoom });
@@ -111,8 +114,10 @@ function startCall() {
 
 // Mute functionality
 muteBtn.addEventListener('click', () => {
-    localStream.getAudioTracks()[0].enabled = !localStream.getAudioTracks()[0].enabled;
-    muteBtn.textContent = localStream.getAudioTracks()[0].enabled ? 'Mute' : 'Unmute';
+    const audioTrack = localStream.getAudioTracks()[0];
+    audioTrack.enabled = !audioTrack.enabled;
+    muteBtn.querySelector('i').classList.toggle('fa-microphone-slash', !audioTrack.enabled);
+    muteBtn.querySelector('i').classList.toggle('fa-microphone', audioTrack.enabled);
 });
 
 // Speaker mute functionality
@@ -120,27 +125,28 @@ speakerBtn.addEventListener('click', () => {
     const audio = document.querySelector('audio');
     if (audio) {
         audio.muted = !audio.muted;
-        speakerBtn.textContent = audio.muted ? 'Speaker On' : 'Speaker Off';
+        speakerBtn.querySelector('i').classList.toggle('fa-volume-mute', audio.muted);
+        speakerBtn.querySelector('i').classList.toggle('fa-volume-up', !audio.muted);
     }
 });
 
 // Hangup functionality
 hangupBtn.addEventListener('click', () => {
-    peerConnection.close();
-    socket.emit('leave-call', { room: currentRoom });
-    location.reload();
+    socket.emit('hangup', currentRoom);
+    endCall();
 });
 
-// Socket.IO Event Handlers
-socket.on('call-started', () => {
-    const callNotification = document.getElementById('call-notification');
-    callNotification.style.display = 'block';
-    callNotification.textContent = 'Call is on';
-});
-
-socket.on('call-ended', () => {
-    const callNotification = document.getElementById('call-notification');
-    callNotification.style.display = 'none';
-    alert('Call has ended.');
+function endCall() {
+    if (peerConnection) {
+        peerConnection.close();
+    }
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+    }
     location.reload();
+}
+
+// Listen for hangup from other peer
+socket.on('peer-hangup', () => {
+    endCall();
 });

@@ -24,7 +24,7 @@ io.on('connection', (socket) => {
         rooms[room].push(socket.id);
         socket.join(room);
         console.log(`Room ${room} created or joined by ${socket.id}`);
-        socket.emit('room-created', room); // Send back confirmation of room creation
+        socket.emit('room-created', room);
     });
 
     // Handle 'join-room' event
@@ -32,26 +32,28 @@ io.on('connection', (socket) => {
         if (rooms[room]) {
             rooms[room].push(socket.id);
             socket.join(room);
-            socket.to(room).emit('call-started'); // Notify others in the room
+            socket.to(room).emit('user-joined', { id: socket.id });
             console.log(`User ${socket.id} joined room ${room}`);
         } else {
             socket.emit('error', 'Room does not exist.');
         }
     });
 
-    // Handle WebRTC signaling
+    // Hangup event
+    socket.on('hangup', (room) => {
+        socket.to(room).emit('peer-hangup');
+    });
+
+    // WebRTC signaling events remain the same as in previous version
     socket.on('offer', ({ offer, room }) => {
-        console.log(`Offer received in room ${room}`);
         socket.to(room).emit('offer', { offer, id: socket.id });
     });
 
     socket.on('answer', ({ answer, room }) => {
-        console.log(`Answer received in room ${room}`);
         socket.to(room).emit('answer', { answer, id: socket.id });
     });
 
     socket.on('new-ice-candidate', ({ candidate, room }) => {
-        console.log(`ICE Candidate received in room ${room}`);
         socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
@@ -62,7 +64,7 @@ io.on('connection', (socket) => {
             const index = rooms[room].indexOf(socket.id);
             if (index !== -1) {
                 rooms[room].splice(index, 1);
-                socket.to(room).emit('call-ended'); // Notify the room that the call has ended
+                socket.to(room).emit('user-left', { id: socket.id });
                 if (rooms[room].length === 0) {
                     delete rooms[room];
                 }
