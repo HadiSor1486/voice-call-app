@@ -1,79 +1,84 @@
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
+const socketIo = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = socketIo(server);
 
-// Serve static files
-app.use(express.static('public'));
+app.use(express.static('public')); // Serve static files from the 'public' directory
 
-// Rooms data structure
-const rooms = {};
+let activeRooms = {};
 
-// Handle WebSocket connections
+// Handle new connections from clients
 io.on('connection', (socket) => {
-    console.log('New user connected:', socket.id);
+    console.log('New client connected', socket.id);
 
-    // Handle 'create-room' event
-    socket.on('create-room', (room) => {
-        if (!rooms[room]) {
-            rooms[room] = [];
+    // Create a room
+    socket.on('create-room', (roomCode) => {
+        if (!activeRooms[roomCode]) {
+            activeRooms[roomCode] = [];
         }
-        rooms[room].push(socket.id);
-        socket.join(room);
-        console.log(`Room ${room} created or joined by ${socket.id}`);
-        socket.emit('room-created', room); // Send back confirmation of room creation
+        activeRooms[roomCode].push(socket.id);
+        socket.join(roomCode);
+        console.log(`Room ${roomCode} created with user ${socket.id}`);
     });
 
-    // Handle 'join-room' event
-    socket.on('join-room', (room) => {
-        if (rooms[room]) {
-            rooms[room].push(socket.id);
-            socket.join(room);
-            socket.to(room).emit('user-joined', { id: socket.id }); // Notify others in the room
-            console.log(`User ${socket.id} joined room ${room}`);
+    // Join an existing room
+    socket.on('join-room', (roomCode) => {
+        if (activeRooms[roomCode] && activeRooms[roomCode].length < 2) {
+            activeRooms[roomCode].push(socket.id);
+            socket.join(roomCode);
+            io.to(roomCode).emit('call-started');
+            console.log(`User ${socket.id} joined room ${roomCode}`);
         } else {
-            socket.emit('error', 'Room does not exist.');
+            socket.emit('room-full');
+            console.log(`Room ${roomCode} is full or doesn't exist.`);
         }
     });
 
-    // Handle WebRTC signaling
-    socket.on('offer', ({ offer, room }) => {
-        console.log(`Offer received in room ${room}`);
-        socket.to(room).emit('offer', { offer, id: socket.id });
+    // Handle offer, answer, and ICE candidates for WebRTC signaling
+    socket.on('offer', (offer) => {
+        const roomCode = Object.keys(socket.rooms)[1]; // Get the room the user is in
+        socket.to(roomCode).emit('offer', offer);
     });
 
-    socket.on('answer', ({ answer, room }) => {
-        console.log(`Answer received in room ${room}`);
-        socket.to(room).emit('answer', { answer, id: socket.id });
+    socket.on('answer', (answer) => {
+        const roomCode = Object.keys(socket.rooms)[1];
+        socket.to(roomCode).emit('answer', answer);
     });
 
-    socket.on('new-ice-candidate', ({ candidate, room }) => {
-        console.log(`ICE Candidate received in room ${room}`);
-        socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
+    socket.on('new-ice-candidate', (candidate) => {
+        const roomCode = Object.keys(socket.rooms)[1];
+        socket.to(roomCode).emit('new-ice-candidate', candidate);
     });
 
-    // Handle user disconnection
+    // Handle call end
+    socket.on('leave-call', () => {
+        const roomCode = Object.keys(socket.rooms)[1];
+        socket.to(roomCode).emit('call-ended');
+        console.log(`User ${socket.id} left the room ${roomCode}`);
+        socket.leave(roomCode);
+        activeRooms[roomCode] = activeRooms[roomCode].filter((id) => id !== socket.id);
+        if (activeRooms[roomCode].length === 0) {
+            delete activeRooms[roomCode];
+        }
+    });
+
+    // Handle client disconnect
     socket.on('disconnect', () => {
-        console.log(`User ${socket.id} disconnected`);
-        for (const room in rooms) {
-            const index = rooms[room].indexOf(socket.id);
-            if (index !== -1) {
-                rooms[room].splice(index, 1);
-                socket.to(room).emit('user-left', { id: socket.id });
-                if (rooms[room].length === 0) {
-                    delete rooms[room];
-                }
-                break;
+        console.log('Client disconnected', socket.id);
+        for (let roomCode in activeRooms) {
+            activeRooms[roomCode] = activeRooms[roomCode].filter((id) => id !== socket.id);
+            if (activeRooms[roomCode].length === 0) {
+                delete activeRooms[roomCode];
             }
         }
     });
 });
 
-// Start the server
+// Set up the server to listen on a port
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });

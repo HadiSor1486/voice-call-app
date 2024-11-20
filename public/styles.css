@@ -1,172 +1,135 @@
-/* General styles */
+/* General Styles */
 body {
     margin: 0;
+    padding: 0;
     font-family: Arial, sans-serif;
-    background-image: url('https://i.imgur.com/ItfhkPw.jpeg');
+    background: url('https://i.imgur.com/97GxtT7.jpeg') no-repeat center center fixed;
     background-size: cover;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+    color: white;
+    text-align: center;
 }
 
-.container {
+/* Landing Page */
+#landing-page {
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    height: 100%;
-    flex-direction: column;
+    height: 100vh;
 }
 
 h1 {
-    color: white;
-    font-size: 32px;
-    text-align: center;
+    font-size: 3em;
     margin-bottom: 20px;
+    text-shadow: 2px 2px 5px black;
 }
 
-/* Buttons Styling */
+.button-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
 button {
     padding: 10px 20px;
-    font-size: 16px;
+    font-size: 1.2em;
+    color: white;
+    background-color: black;
+    border: 2px solid white;
+    border-radius: 5px;
     cursor: pointer;
-    border: none;
-    margin: 5px;
-    border-radius: 10px;
+    transition: all 0.3s ease;
 }
 
 button:hover {
-    background-color: rgba(255, 255, 255, 0.3);
+    background-color: white;
+    color: black;
 }
 
-button:focus {
-    outline: none;
+/* Room Code Input and Copy Button */
+#room-code-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
 }
 
-/* Room input and buttons styling */
-#room-code-input {
+#generated-room-code {
     padding: 10px;
-    font-size: 16px;
-    margin-bottom: 20px;
-    width: 200px;
+    font-size: 1em;
+    border: 1px solid white;
     border-radius: 5px;
-    border: 1px solid #ccc;
+    background-color: black;
+    color: white;
     text-align: center;
 }
 
-/* Create room and join room buttons */
-#join-room, #create-room {
-    background-color: #4CAF50;
+#room-code-input {
+    padding: 10px;
+    font-size: 1em;
+    border: 1px solid white;
+    border-radius: 5px;
+    background-color: black;
     color: white;
-    font-weight: bold;
+    width: 80%;
 }
 
-#join-room {
-    background-color: #2196F3;
-}
-
-#join-room:hover, #create-room:hover {
-    background-color: #45a049;
-}
-
-/* Room container with center alignment */
-#room-container {
+/* Call Page */
+#call-page {
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    text-align: center;
-    padding: 20px;
-    background-color: rgba(255, 255, 255, 0.8);
-    border-radius: 10px;
+    height: 100vh;
+    display: none;
 }
 
-/* Call controls */
-#call-controls {
-    display: none;
-    position: fixed;
-    bottom: 30px; /* Adjusted to place it lower */
-    left: 50%;
-    transform: translateX(-50%);
+#call-notification {
+    font-size: 2em;
+    margin-bottom: 30px;
+    background-color: rgba(0, 128, 0, 0.8);
+    padding: 10px 20px;
+    border-radius: 10px;
+    animation: fadeIn 1s ease-in-out;
+}
+
+/* Control Buttons */
+.control-buttons {
     display: flex;
+    gap: 20px;
     justify-content: center;
     align-items: center;
 }
 
-.control-button {
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    border-radius: 50%;
-    width: 60px;  /* Adjusted size */
-    height: 60px; /* Adjusted size */
-    margin: 0 10px;
-    font-size: 24px;
-    border: none;
-    cursor: pointer;
-}
-
-.control-button:hover {
-    background-color: rgba(255, 255, 255, 0.3);
-}
-
-.control-button:focus {
-    outline: none;
-}
-
-/* Call notification */
-#call-notification {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 10px 20px;
-    background-color: green;
-    color: white;
-    font-weight: bold;
-    border-radius: 10px;
-    display: none;
-}
-
-/* New Button Positioning at the Bottom Center */
-#buttons {
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    justify-content: space-between;
-    width: 300px; /* Adjust width as needed */
-    padding: 10px;
-}
-
-button {
-    background-color: rgba(0, 0, 0, 0.5);
-    color: white;
-    border-radius: 50%;
+.control-buttons button {
     width: 60px;
     height: 60px;
+    border: none;
+    border-radius: 50%;
+    background-color: black;
+    cursor: pointer;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 24px;
-    border: none;
-    cursor: pointer;
+    transition: transform 0.2s ease;
 }
 
-button:hover {
-    background-color: rgba(255, 255, 255, 0.3);
+.control-buttons button:hover {
+    transform: scale(1.1);
 }
 
-button:focus {
-    outline: none;
+.control-buttons img {
+    width: 30px;
+    height: 30px;
+    pointer-events: none;
 }
 
-/* Align Buttons in Specific Order */
-#muteToggle {
-    margin-right: auto; /* Align left */
-}
-
-#hangup {
-    margin-left: auto; /* Align right */
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }

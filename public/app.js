@@ -171,3 +171,7 @@ socket.on('new-ice-candidate', async (candidate) => {
         console.error('Error adding ICE candidate:', error);
     }
 });
+
+socket.on('call-ended', () => {
+    hangupButton.click();
+});
