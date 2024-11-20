@@ -66,7 +66,7 @@ async function startCall() {
 
     peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
-            socket.emit('new-ice-candidate', event.candidate);
+            socket.emit('new-ice-candidate', event.candidate, roomCodeInput.value);
         }
     };
 
@@ -75,18 +75,12 @@ async function startCall() {
         const audioElement = new Audio();
         audioElement.srcObject = remoteStream;
         audioElement.autoplay = true;
-        // Toggle speaker mute
-        speakerButton.addEventListener('click', () => {
-            isSpeakerMuted = !isSpeakerMuted;
-            audioElement.muted = isSpeakerMuted;
-            updateSpeakerIcon(isSpeakerMuted);
-        });
     };
 
     // Create and send offer to the peer
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
-    socket.emit('offer', offer);
+    socket.emit('offer', offer, roomCodeInput.value);
 
     // Display the "Call is ON" notification
     showCallNotification();
@@ -154,51 +148,17 @@ function updateParticipants(participants) {
 
 // Socket.IO event handlers
 
-// Handle the offer received from the other user
-socket.on('offer', async (offer) => {
-    if (!peerConnection) {
-        peerConnection = new RTCPeerConnection(configuration);
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('new-ice-candidate', event.candidate);
-            }
-        };
-        peerConnection.ontrack = (event) => {
-            const [remoteStream] = event.streams;
-            const audioElement = new Audio();
-            audioElement.srcObject = remoteStream;
-            audioElement.autoplay = true;
-        };
-    }
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    socket.emit('answer', answer);
-});
-
-// Handle the answer from the other user
-socket.on('answer', async (answer) => {
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-});
-
-// Handle new ICE candidate
-socket.on('new-ice-candidate', async (candidate) => {
-    try {
-        await peerConnection.addIceCandidate(candidate);
-    } catch (error) {
-        console.error('Error adding ICE candidate:', error);
-    }
-});
-
-// Handle when the call ends
-socket.on('call-ended', () => {
-    hangupButton.click();
-});
-
 // Handle room creation on the server side
 socket.on('room-created', (roomCode) => {
     generatedRoomCodeElement.value = roomCode;
     roomCodeContainer.style.display = 'block';
+});
+
+// Handle room joining confirmation
+socket.on('room-joined', (roomCode) => {
+    roomCodeInput.value = roomCode;
+    roomCodeContainer.style.display = 'none';
+    startCall();
 });
 
 // Handle participants list update
@@ -208,5 +168,10 @@ socket.on('update-participants', (participants) => {
 
 // Display notification when a new user joins
 socket.on('user-joined', (username) => {
-    alert(`${username} has joined the room.`);
+    alert(`${username} has joined the room`);
+});
+
+// Handle room not found case
+socket.on('room-not-found', () => {
+    alert('Room not found! Please check the code and try again.');
 });
