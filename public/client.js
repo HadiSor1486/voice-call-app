@@ -31,37 +31,55 @@ const configuration = {
 
 // Copy Room Code Functionality
 copyRoomCodeBtn.addEventListener('click', () => {
-    navigator.clipboard.writeText(currentRoom).then(() => {
-        alert('Room code copied!');
-    });
+    if (currentRoom) {
+        navigator.clipboard.writeText(currentRoom).then(() => {
+            alert('Room code copied!');
+        });
+    }
 });
 
 // Create Room
 createRoomBtn.addEventListener('click', () => {
     const roomCode = Math.random().toString(36).substring(2, 8);
+    currentRoom = roomCode;
     generatedRoomCode.style.display = 'block';
     generatedRoomCode.textContent = `Room Code: ${roomCode}`;
     copyRoomCodeBtn.style.display = 'inline-block';
-    currentRoom = roomCode;
     socket.emit('create-room', roomCode);
 });
 
 // Join Room
 joinRoomBtn.addEventListener('click', () => {
     const roomCode = roomCodeInput.value.trim();
-    if (!roomCode) return alert('Please enter a room code.');
+    if (!roomCode) {
+        alert('Please enter a room code.');
+        return;
+    }
     currentRoom = roomCode;
     socket.emit('join-room', roomCode);
 });
 
-// Socket event to show call page and start call
+// Handle room errors with feedback
+socket.on('room-error', (errorMessage) => {
+    console.error('Room Error:', errorMessage);
+    alert(errorMessage);
+
+    // Reset room input
+    roomCodeInput.value = '';
+    currentRoom = null;
+});
+
+// Room created successfully
+socket.on('room-created', (room) => {
+    console.log('Room created successfully:', room);
+    // Optional: Automatically show the call page for the room creator
+    // showCallPage();
+});
+
+// User joined room
 socket.on('user-joined', (data) => {
     showCallPage();
     updateCallNotification(data.message);
-});
-
-socket.on('room-error', (errorMessage) => {
-    alert(errorMessage);
 });
 
 // Show Call Page

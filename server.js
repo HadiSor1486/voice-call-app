@@ -18,12 +18,12 @@ io.on('connection', (socket) => {
 
     // Handle 'create-room' event
     socket.on('create-room', (room) => {
-        if (!rooms[room]) {
-            rooms[room] = {
-                participants: [],
-                offer: null
-            };
-        }
+        // Ensure room is completely reset or newly created
+        rooms[room] = {
+            participants: [],
+            offer: null
+        };
+        
         rooms[room].participants.push(socket.id);
         socket.join(room);
         console.log(`Room ${room} created by ${socket.id}`);
@@ -32,29 +32,36 @@ io.on('connection', (socket) => {
 
     // Handle 'join-room' event
     socket.on('join-room', (room) => {
-        if (rooms[room]) {
-            if (rooms[room].participants.length < 2) {
-                rooms[room].participants.push(socket.id);
-                socket.join(room);
-                
-                // Notify other participants that a new user has joined
-                socket.to(room).emit('user-joined', { 
-                    id: socket.id, 
-                    message: 'Your friend has joined the call!' 
-                });
-                
-                // Send the existing offer to the new participant if available
-                if (rooms[room].offer) {
-                    socket.emit('existing-offer', rooms[room].offer);
-                }
-                
-                console.log(`User ${socket.id} joined room ${room}`);
-            } else {
-                socket.emit('room-error', 'Room is full');
-            }
-        } else {
+        // Check if room exists
+        if (!rooms[room]) {
             socket.emit('room-error', 'Room does not exist');
+            return;
         }
+
+        // Always allow the first participant to join
+        // Only prevent additional participants if room already has 2 people
+        if (rooms[room].participants.length >= 2) {
+            socket.emit('room-error', 'Room is full');
+            return;
+        }
+
+        // Add participant to the room
+        rooms[room].participants.push(socket.id);
+        socket.join(room);
+        
+        // Notify other participants that a new user has joined
+        socket.to(room).emit('user-joined', { 
+            id: socket.id, 
+            message: 'Your friend has joined the call!' 
+        });
+        
+        // Send the existing offer to the new participant if available
+        if (rooms[room].offer) {
+            socket.emit('existing-offer', rooms[room].offer);
+        }
+        
+        console.log(`User ${socket.id} joined room ${room}`);
+        console.log(`Current participants in ${room}:`, rooms[room].participants);
     });
 
     // Store WebRTC offers
@@ -66,11 +73,10 @@ io.on('connection', (socket) => {
 
     // WebRTC signaling events
     socket.on('offer', ({ offer, room }) => {
-        // Store the offer
         if (rooms[room]) {
             rooms[room].offer = offer;
+            socket.to(room).emit('offer', { offer, id: socket.id });
         }
-        socket.to(room).emit('offer', { offer, id: socket.id });
     });
 
     socket.on('answer', ({ answer, room }) => {
