@@ -1,13 +1,13 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
 
 :root {
-    --primary-color: #4a4a4a;
-    --secondary-color: #6a6a6a;
-    --accent-color: #3498db;
-    --background-color: #f4f4f4;
-    --text-color: #333;
+    --primary-color: #3A56C5;
+    --secondary-color: #5E72E4;
+    --background-color: #F4F5F7;
+    --text-color: #1A2138;
+    --white: #FFFFFF;
+    --gradient-primary: linear-gradient(135deg, #3A56C5 0%, #5E72E4 100%);
     --call-notification-bg: #4CAF50;
-    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 * {
@@ -17,49 +17,58 @@
 }
 
 body {
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Inter', sans-serif;
     background-color: var(--background-color);
     color: var(--text-color);
     line-height: 1.6;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
 }
 
 .app-container {
-    max-width: 600px;
-    margin: 0 auto;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 20px;
+    width: 100%;
+    max-width: 450px;
+    perspective: 1000px;
 }
 
 .page {
-    background-color: white;
-    border-radius: 15px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    padding: 30px;
+    background: var(--white);
+    border-radius: 20px;
+    box-shadow: 0 15px 35px rgba(50, 50, 93, 0.1), 0 5px 15px rgba(0, 0, 0, 0.07);
+    padding: 40px;
     text-align: center;
+    transform: translateZ(0);
+    transition: all 0.4s ease-in-out;
+}
+
+.page:hover {
+    transform: scale(1.02) rotateX(5deg);
 }
 
 .logo-container {
-    margin-bottom: 30px;
+    margin-bottom: 40px;
 }
 
 .logo-container h1 {
-    font-size: 2.5rem;
-    color: var(--primary-color);
-    margin-bottom: 10px;
+    font-size: 2.8rem;
+    font-weight: 700;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 15px;
 }
 
 .logo-container p {
     color: var(--secondary-color);
-    font-weight: 300;
+    font-weight: 400;
 }
 
 .room-actions {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 25px;
 }
 
 .join-room-container {
@@ -70,9 +79,15 @@ body {
 #room-code-input {
     flex-grow: 1;
     padding: 12px;
-    border: 1px solid #ddd;
+    border: 2px solid var(--primary-color);
     border-radius: 8px;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.3s ease;
+}
+
+#room-code-input:focus {
+    outline: none;
+    border-color: var(--secondary-color);
 }
 
 .btn {
@@ -84,24 +99,25 @@ body {
     border: none;
     border-radius: 8px;
     cursor: pointer;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Inter', sans-serif;
+    background: var(--gradient-primary);
+    color: var(--white);
+    font-weight: 600;
+    letter-spacing: 0.5px;
     transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
 }
 
-.btn-primary {
-    background-color: var(--accent-color);
-    color: white;
-}
-
-.btn-secondary {
-    background-color: var(--primary-color);
-    color: white;
+.btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
 }
 
 .btn-copy {
-    background-color: transparent;
-    color: var(--accent-color);
-    border: 1px solid var(--accent-color);
+    background: transparent;
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
 }
 
 .room-code-display {
@@ -120,21 +136,21 @@ body {
 
 #call-page {
     display: none;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+    background: var(--gradient-primary);
+    color: var(--white);
 }
 
 .call-controls {
     display: flex;
-    justify-content: space-between;
-    width: 100%;
-    margin-top: 20px;
+    justify-content: center;
+    gap: 30px;
+    margin-top: 40px;
 }
 
 .control-btn {
-    background-color: rgba(255, 255, 255, 0.2);
-    color: white;
-    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--white);
+    border: 2px solid rgba(255, 255, 255, 0.2);
     border-radius: 50%;
     width: 60px;
     height: 60px;
@@ -142,18 +158,18 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background-color 0.3s ease;
+    transition: all 0.3s ease;
 }
 
 .control-btn:hover {
-    background-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
 }
 
 .control-btn i {
     font-size: 24px;
 }
 
-/* Call Notification Styles */
 #call-notification {
     position: fixed;
     top: 20px;
@@ -166,7 +182,6 @@ body {
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
     text-align: center;
     z-index: 1000;
-    font-family: 'Poppins', sans-serif;
     animation: slideIn 0.5s ease-out, pulse 2s infinite;
     max-width: 300px;
     opacity: 0;
@@ -192,4 +207,13 @@ body {
     0% { transform: translateX(-50%) scale(1); }
     50% { transform: translateX(-50%) scale(1.03); }
     100% { transform: translateX(-50%) scale(1); }
+}
+
+@media (max-width: 480px) {
+    .app-container {
+        max-width: 95%;
+    }
+    .page {
+        padding: 25px;
+    }
 }

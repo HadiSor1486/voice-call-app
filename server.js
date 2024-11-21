@@ -62,6 +62,13 @@ io.on('connection', (socket) => {
         socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
+    // Handle user leaving the call
+    socket.on('leave-call', (room) => {
+        // Broadcast to all other users in the room that someone left
+        socket.to(room).emit('call-ended');
+        log(`User ${socket.id} left room ${room}`);
+    });
+
     // Disconnect handling
     socket.on('disconnect', () => {
         log(`User ${socket.id} disconnected`);

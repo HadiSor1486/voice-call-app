@@ -29,12 +29,10 @@ function showCallNotification(message) {
     notificationEl.textContent = message;
     document.body.appendChild(notificationEl);
     
-    // Trigger reflow to enable animation
     void notificationEl.offsetWidth;
     
     notificationEl.classList.add('show');
     
-    // Auto-remove after 5 seconds
     setTimeout(() => {
         notificationEl.classList.remove('show');
         setTimeout(() => {
@@ -129,6 +127,12 @@ function setupCallEventHandlers() {
     socket.on('new-ice-candidate', ({ candidate }) => {
         peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
     });
+
+    // New handler for call termination
+    socket.on('call-ended', () => {
+        showCallNotification('Call has been terminated.');
+        terminateCall();
+    });
 }
 
 function createAndSendOffer() {
@@ -156,11 +160,29 @@ speakerBtn.addEventListener('click', () => {
 });
 
 hangupBtn.addEventListener('click', () => {
+    // Notify server that user is leaving the call
+    if (currentRoom) {
+        socket.emit('leave-call', currentRoom);
+    }
+    terminateCall();
+});
+
+function terminateCall() {
     if (peerConnection) {
         peerConnection.close();
+        peerConnection = null;
     }
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
     }
-    location.reload();
-});
+    
+    // Remove any audio elements
+    const audioElements = document.querySelectorAll('audio');
+    audioElements.forEach(audio => audio.remove());
+
+    // Reset to landing page
+    landingPage.style.display = 'block';
+    callPage.style.display = 'none';
+    currentRoom = null;
+}
