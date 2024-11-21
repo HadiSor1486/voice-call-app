@@ -24,10 +24,14 @@ io.on('connection', (socket) => {
 
     socket.on('create-room', (room) => {
         if (!rooms.has(room)) {
-            rooms.set(room, new Set());
+            rooms.set(room, {
+                members: new Set(),
+                muteStatus: {},
+                speakerStatus: {}
+            });
         }
-        const roomMembers = rooms.get(room);
-        roomMembers.add(socket.id);
+        const roomData = rooms.get(room);
+        roomData.members.add(socket.id);
         socket.join(room);
         log(`Room ${room} created by ${socket.id}`);
         socket.emit('room-created', room);
@@ -35,11 +39,25 @@ io.on('connection', (socket) => {
 
     socket.on('join-room', (room) => {
         if (rooms.has(room)) {
-            const roomMembers = rooms.get(room);
-            roomMembers.add(socket.id);
+            const roomData = rooms.get(room);
+            roomData.members.add(socket.id);
             socket.join(room);
+            
             // Notify ALL users in the room that someone joined
             io.to(room).emit('user-joined', { id: socket.id });
+            
+            // Send current status to the newly joined user
+            if (roomData.muteStatus[socket.id] !== undefined) {
+                socket.emit('other-user-mute', { 
+                    isMuted: roomData.muteStatus[socket.id] 
+                });
+            }
+            if (roomData.speakerStatus[socket.id] !== undefined) {
+                socket.emit('other-user-speaker', { 
+                    isSpeakerOff: roomData.speakerStatus[socket.id] 
+                });
+            }
+            
             log(`User ${socket.id} joined room ${room}`);
         } else {
             socket.emit('error', 'Room does not exist.');
@@ -62,15 +80,31 @@ io.on('connection', (socket) => {
         socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
-    // New handlers for user mute and speaker events
+    // Updated handlers for user mute and speaker events
     socket.on('user-mute', ({ room, isMuted }) => {
         log(`User ${socket.id} mute status: ${isMuted}`);
-        socket.to(room).emit('other-user-mute', { isMuted });
+        
+        // Update room's mute status
+        const roomData = rooms.get(room);
+        if (roomData) {
+            roomData.muteStatus[socket.id] = isMuted;
+            
+            // Broadcast to all other users in the room
+            socket.to(room).emit('other-user-mute', { isMuted });
+        }
     });
 
     socket.on('user-speaker', ({ room, isSpeakerOff }) => {
         log(`User ${socket.id} speaker status: ${isSpeakerOff}`);
-        socket.to(room).emit('other-user-speaker', { isSpeakerOff });
+        
+        // Update room's speaker status
+        const roomData = rooms.get(room);
+        if (roomData) {
+            roomData.speakerStatus[socket.id] = isSpeakerOff;
+            
+            // Broadcast to all other users in the room
+            socket.to(room).emit('other-user-speaker', { isSpeakerOff });
+        }
     });
 
     // Handle user leaving the call
@@ -78,17 +112,28 @@ io.on('connection', (socket) => {
         // Broadcast to all other users in the room that someone left
         socket.to(room).emit('call-ended');
         log(`User ${socket.id} left room ${room}`);
+        
+        // Clean up user's status in the room
+        const roomData = rooms.get(room);
+        if (roomData) {
+            delete roomData.muteStatus[socket.id];
+            delete roomData.speakerStatus[socket.id];
+        }
     });
 
     // Disconnect handling
     socket.on('disconnect', () => {
         log(`User ${socket.id} disconnected`);
-        for (const [room, members] of rooms.entries()) {
-            if (members.has(socket.id)) {
-                members.delete(socket.id);
+        for (const [room, roomData] of rooms.entries()) {
+            if (roomData.members.has(socket.id)) {
+                roomData.members.delete(socket.id);
                 socket.to(room).emit('user-left', { id: socket.id });
                 
-                if (members.size === 0) {
+                // Clean up user's status
+                delete roomData.muteStatus[socket.id];
+                delete roomData.speakerStatus[socket.id];
+                
+                if (roomData.members.size === 0) {
                     rooms.delete(room);
                 }
                 break;
