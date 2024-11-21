@@ -6,59 +6,88 @@ const createRoomBtn = document.getElementById('create-room');
 const joinRoomBtn = document.getElementById('join-room');
 const roomCodeInput = document.getElementById('room-code-input');
 const generatedRoomCode = document.getElementById('generated-room-code');
+const copyRoomCodeBtn = document.getElementById('copy-room-code');
 
 // Call Page Elements
 const callPage = document.getElementById('call-page');
 const muteBtn = document.getElementById('mute-btn');
 const hangupBtn = document.getElementById('hangup-btn');
 const speakerBtn = document.getElementById('speaker-btn');
+const callNotification = document.getElementById('call-notification');
 
-// New Variables for the Room
-let localStream;
-let peerConnection;
-let currentRoom;
+let localStream = null;
+let peerConnection = null;
+let currentRoom = null;
+let audioElement = null;
 
-// Ice server configuration
-const iceServers = {
+// Ice server configuration with multiple STUN/TURN servers
+const configuration = {
     iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
     ]
 };
 
-// Handle room creation
+// Copy Room Code
+copyRoomCodeBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(currentRoom).then(() => {
+        alert('Room code copied!');
+    });
+});
+
+// Create Room
 createRoomBtn.addEventListener('click', () => {
-    const roomCode = Math.random().toString(36).substring(2, 8);
+    const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     generatedRoomCode.style.display = 'block';
     generatedRoomCode.textContent = `Room Code: ${roomCode}`;
+    copyRoomCodeBtn.style.display = 'inline-block';
     currentRoom = roomCode;
     socket.emit('create-room', roomCode);
 });
 
-// Handle joining a room
+// Join Room
 joinRoomBtn.addEventListener('click', () => {
-    const roomCode = roomCodeInput.value.trim();
+    const roomCode = roomCodeInput.value.trim().toUpperCase();
     if (!roomCode) return alert('Please enter a room code.');
     currentRoom = roomCode;
     socket.emit('join-room', roomCode);
 });
 
-// Show call page
+// Handle room creation/join errors
+socket.on('room-error', (message) => {
+    alert(message);
+    currentRoom = null;
+});
+
+socket.on('room-created', () => {
+    showCallPage();
+});
+
+socket.on('user-joined', () => {
+    callNotification.textContent = 'Peer Joined';
+    callNotification.style.display = 'block';
+    setTimeout(() => {
+        callNotification.style.display = 'none';
+    }, 3000);
+});
+
+// Show Call Page
 function showCallPage() {
     landingPage.style.display = 'none';
     callPage.style.display = 'block';
     startCall();
 }
 
-// Handle WebRTC connection
-function startCall() {
-    navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then((stream) => {
-        localStream = stream;
-        peerConnection = new RTCPeerConnection(iceServers);
+// Initialize WebRTC Call
+async function startCall() {
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        peerConnection = new RTCPeerConnection(configuration);
 
-        // Add local stream to the connection
-        localStream.getTracks().forEach((track) => {
-            peerConnection.addTrack(track, localStream);
-        });
+        localStream.getTracks().forEach(track => 
+            peerConnection.addTrack(track, localStream)
+        );
 
         peerConnection.onicecandidate = (event) => {
             if (event.candidate) {
@@ -70,61 +99,91 @@ function startCall() {
         };
 
         peerConnection.ontrack = (event) => {
-            const audio = document.createElement('audio');
-            audio.srcObject = event.streams[0];
-            audio.autoplay = true;
-            document.body.appendChild(audio);
+            const remoteStream = event.streams[0];
+            audioElement = document.createElement('audio');
+            audioElement.srcObject = remoteStream;
+            audioElement.autoplay = true;
+            callNotification.style.display = 'block';
         };
 
-        socket.on('offer', async ({ offer }) => {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            socket.emit('answer', { answer, room: currentRoom });
-        });
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        socket.emit('offer', { offer, room: currentRoom });
 
-        socket.on('answer', async ({ answer }) => {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-        });
-
-        socket.on('new-ice-candidate', ({ candidate }) => {
-            peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        });
-
-        peerConnection.createOffer().then((offer) => {
-            peerConnection.setLocalDescription(offer);
-            socket.emit('offer', { offer, room: currentRoom });
-        });
-    });
+    } catch (error) {
+        console.error('Call start error:', error);
+        alert('Could not start call. Check microphone permissions.');
+    }
 }
 
-// Mute functionality
-muteBtn.addEventListener('click', () => {
-    localStream.getAudioTracks()[0].enabled = !localStream.getAudioTracks()[0].enabled;
-    muteBtn.textContent = localStream.getAudioTracks()[0].enabled ? 'Mute' : 'Unmute';
+// Socket Event Handlers
+socket.on('offer', async (data) => {
+    if (!peerConnection) {
+        peerConnection = new RTCPeerConnection(configuration);
+    }
+    
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    socket.emit('answer', { answer, room: currentRoom });
 });
 
-// Speaker mute functionality
-speakerBtn.addEventListener('click', () => {
-    const audio = document.querySelector('audio');
-    if (audio) {
-        audio.muted = !audio.muted;
-        speakerBtn.textContent = audio.muted ? 'Speaker On' : 'Speaker Off';
+socket.on('answer', async (data) => {
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+});
+
+socket.on('new-ice-candidate', async (data) => {
+    try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+    } catch (error) {
+        console.error('ICE candidate error:', error);
     }
 });
 
-// Hangup functionality
+// Mute Functionality
+muteBtn.addEventListener('click', () => {
+    if (localStream) {
+        const audioTrack = localStream.getAudioTracks()[0];
+        audioTrack.enabled = !audioTrack.enabled;
+        muteBtn.querySelector('i').classList.toggle('fa-microphone-slash');
+        muteBtn.querySelector('i').classList.toggle('fa-microphone');
+    }
+});
+
+// Speaker Mute Functionality
+speakerBtn.addEventListener('click', () => {
+    if (audioElement) {
+        audioElement.muted = !audioElement.muted;
+        speakerBtn.querySelector('i').classList.toggle('fa-volume-mute');
+        speakerBtn.querySelector('i').classList.toggle('fa-volume-up');
+    }
+});
+
+// Hangup Functionality
 hangupBtn.addEventListener('click', () => {
-    peerConnection.close();
+    socket.emit('hangup', currentRoom);
+    endCall();
+});
+
+// End Call
+function endCall() {
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
     location.reload();
+}
+
+// Peer Hangup Event
+socket.on('peer-hangup', () => {
+    endCall();
 });
 
-// Listen for room join confirmation
-socket.on('room-joined', () => {
-    showCallPage();
-});
-
-// Listen for user joining the room
-socket.on('user-joined', () => {
-    showCallPage();
+socket.on('peer-left', () => {
+    alert('Peer left the call');
+    endCall();
 });

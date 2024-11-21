@@ -18,144 +18,103 @@ const callNotification = document.getElementById('call-notification');
 let localStream = null;
 let peerConnection = null;
 let currentRoom = null;
-let isMuted = false;
-let isSpeakerMuted = false;
+let remoteAudioElement = null;
 
-// WebRTC Configuration
+// WebRTC Configuration with multiple STUN servers
 const configuration = {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+    ]
 };
 
-// Copy Room Code Functionality
+// Utility Functions
+function generateRoomCode() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+// Event Listeners
 copyRoomCodeBtn.addEventListener('click', () => {
     navigator.clipboard.writeText(currentRoom).then(() => {
         alert('Room code copied!');
     });
 });
 
-// Create Room
 createRoomBtn.addEventListener('click', () => {
-    const roomCode = Math.random().toString(36).substring(2, 8);
-    generatedRoomCode.style.display = 'block';
+    const roomCode = generateRoomCode();
     generatedRoomCode.textContent = `Room Code: ${roomCode}`;
+    generatedRoomCode.style.display = 'block';
     copyRoomCodeBtn.style.display = 'inline-block';
     currentRoom = roomCode;
     socket.emit('create-room', roomCode);
 });
 
-// Join Room
 joinRoomBtn.addEventListener('click', () => {
-    const roomCode = roomCodeInput.value.trim();
+    const roomCode = roomCodeInput.value.trim().toUpperCase();
     if (!roomCode) return alert('Please enter a room code.');
     currentRoom = roomCode;
     socket.emit('join-room', roomCode);
 });
 
-// Show Call Page
+// Socket Event Handlers
+socket.on('room-created', () => showCallPage());
+socket.on('room-error', (message) => alert(message));
+socket.on('user-joined', () => updateCallNotification('Peer Joined'));
+
 function showCallPage() {
     landingPage.style.display = 'none';
     callPage.style.display = 'block';
     startCall();
 }
 
-// Initialize Call
 async function startCall() {
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-        peerConnection = new RTCPeerConnection(configuration);
-        localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
-
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('new-ice-candidate', {
-                    candidate: event.candidate,
-                    room: currentRoom
-                });
-            }
-        };
-
-        peerConnection.ontrack = (event) => {
-            const [remoteStream] = event.streams;
-            const audioElement = new Audio();
-            audioElement.srcObject = remoteStream;
-            audioElement.autoplay = true;
-
-            // Show call notification
-            callNotification.style.display = 'block';
-
-            // Toggle speaker mute
-            speakerButton.addEventListener('click', () => {
-                isSpeakerMuted = !isSpeakerMuted;
-                audioElement.muted = isSpeakerMuted;
-                speakerButton.querySelector('i').classList.toggle('fa-volume-mute', isSpeakerMuted);
-                speakerButton.querySelector('i').classList.toggle('fa-volume-up', !isSpeakerMuted);
-            });
-        };
-
-        // Create and send offer
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        socket.emit('offer', { offer, room: currentRoom });
-
+        setupPeerConnection();
+        createAndSendOffer();
     } catch (error) {
-        console.error('Error starting call:', error);
-        alert('Could not start the call. Please check your microphone permissions.');
+        console.error('Call start error:', error);
+        alert('Could not start call. Check microphone permissions.');
     }
 }
 
-// Mute/Unmute Microphone
-muteButton.addEventListener('click', () => {
-    if (localStream) {
-        isMuted = !isMuted;
-        localStream.getAudioTracks()[0].enabled = !isMuted;
-        muteButton.querySelector('i').classList.toggle('fa-microphone-slash', isMuted);
-        muteButton.querySelector('i').classList.toggle('fa-microphone', !isMuted);
-    }
-});
+function setupPeerConnection() {
+    peerConnection = new RTCPeerConnection(configuration);
 
-// Hang Up Call
-hangupButton.addEventListener('click', () => {
-    socket.emit('hangup', currentRoom);
-    endCall();
-});
+    localStream.getTracks().forEach(track => 
+        peerConnection.addTrack(track, localStream)
+    );
 
-// End Call Function
-function endCall() {
-    if (peerConnection) {
-        peerConnection.close();
-        peerConnection = null;
-    }
-    if (localStream) {
-        localStream.getTracks().forEach((track) => track.stop());
-        localStream = null;
-    }
-    location.reload();
+    peerConnection.onicecandidate = handleICECandidate;
+    peerConnection.ontrack = handleRemoteTrack;
 }
 
-// Socket.IO Event Handlers
-socket.on('room-created', () => {
-    console.log('Room created successfully.');
-});
+function handleICECandidate(event) {
+    if (event.candidate) {
+        socket.emit('new-ice-candidate', {
+            candidate: event.candidate,
+            room: currentRoom
+        });
+    }
+}
 
-socket.on('room-joined', () => {
-    console.log('Joined room successfully.');
-    showCallPage();
-});
+function handleRemoteTrack(event) {
+    remoteAudioElement = document.createElement('audio');
+    remoteAudioElement.srcObject = event.streams[0];
+    remoteAudioElement.autoplay = true;
+    updateCallNotification('Call Connected');
+}
 
+async function createAndSendOffer() {
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    socket.emit('offer', { offer, room: currentRoom });
+}
+
+// WebRTC Signaling
 socket.on('offer', async (data) => {
-    if (!peerConnection) {
-        peerConnection = new RTCPeerConnection(configuration);
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('new-ice-candidate', {
-                    candidate: event.candidate,
-                    room: currentRoom
-                });
-            }
-        };
-    }
-
+    if (!peerConnection) setupPeerConnection();
+    
     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
@@ -170,11 +129,56 @@ socket.on('new-ice-candidate', async (data) => {
     try {
         await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
     } catch (error) {
-        console.error('Error adding ICE candidate:', error);
+        console.error('ICE candidate error:', error);
     }
 });
 
-// Peer Hangup Event
-socket.on('peer-hangup', () => {
+// Call Control Buttons
+muteButton.addEventListener('click', toggleMute);
+speakerButton.addEventListener('click', toggleSpeaker);
+hangupButton.addEventListener('click', endCall);
+
+function toggleMute() {
+    if (localStream) {
+        const audioTrack = localStream.getAudioTracks()[0];
+        audioTrack.enabled = !audioTrack.enabled;
+        muteButton.querySelector('i').classList.toggle('fa-microphone-slash');
+        muteButton.querySelector('i').classList.toggle('fa-microphone');
+    }
+}
+
+function toggleSpeaker() {
+    if (remoteAudioElement) {
+        remoteAudioElement.muted = !remoteAudioElement.muted;
+        speakerButton.querySelector('i').classList.toggle('fa-volume-mute');
+        speakerButton.querySelector('i').classList.toggle('fa-volume-up');
+    }
+}
+
+function updateCallNotification(message) {
+    callNotification.textContent = message;
+    callNotification.style.display = 'block';
+    setTimeout(() => {
+        callNotification.style.display = 'none';
+    }, 3000);
+}
+
+function endCall() {
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
+    socket.emit('hangup', currentRoom);
+    location.reload();
+}
+
+// Peer Events
+socket.on('peer-hangup', endCall);
+socket.on('peer-left', () => {
+    alert('Peer left the call');
     endCall();
 });
