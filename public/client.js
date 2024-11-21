@@ -26,19 +26,6 @@ const iceServers = {
     ]
 };
 
-// Add "By Sor" text
-const callOverlay = document.querySelector('.call-overlay');
-const bysorText = document.createElement('div');
-bysorText.textContent = 'By Hadi';
-bysorText.style.color = '#f5f5f5';
-bysorText.style.position = 'absolute';
-bysorText.style.top = '10px';
-bysorText.style.left = '50%';
-bysorText.style.transform = 'translateX(-50%)';
-bysorText.style.fontSize = '18px';
-bysorText.style.fontWeight = 'bold';
-callOverlay.appendChild(bysorText);
-
 function showCallNotification(message, persistent = false) {
     // Remove existing notification of the same type
     const existingNotification = document.getElementById('call-notification');
@@ -51,7 +38,7 @@ function showCallNotification(message, persistent = false) {
     notificationEl.textContent = message;
     document.body.appendChild(notificationEl);
     
-    void notificationEl.offsetWidth;
+    void notificationEl.offsetWidth; // Force reflow
     
     notificationEl.classList.add('show');
     
@@ -59,9 +46,9 @@ function showCallNotification(message, persistent = false) {
         setTimeout(() => {
             notificationEl.classList.remove('show');
             setTimeout(() => {
-                document.body.removeChild(notificationEl);
+                notificationEl.remove();
             }, 500);
-        }, 5000);
+        }, 3000);
     }
     
     return notificationEl;
@@ -134,11 +121,12 @@ function startCall() {
 }
 
 function setupCallEventHandlers() {
+    // Handle when another user joins the call
     socket.on('user-joined', () => {
         isCallConnected = true;
         showCallNotification('Call connected! You can now talk.');
 
-        // Send initial mute and speaker status when connected
+        // Send initial status to new user
         const audioTrack = localStream.getAudioTracks()[0];
         socket.emit('user-mute', { 
             room: currentRoom, 
@@ -208,36 +196,28 @@ function setupCallEventHandlers() {
         }
     });
 
-    // Receive mute notification from other user
+    // Receive mute status from other user
     socket.on('other-user-mute', ({ isMuted }) => {
         if (muteNotification) {
             muteNotification.remove();
         }
         
-        if (isMuted) {
-            muteNotification = showCallNotification('Your friend is muted', true);
-        } else {
-            if (muteNotification) {
-                muteNotification.remove();
-                muteNotification = null;
-            }
-        }
+        muteNotification = showCallNotification(
+            isMuted ? 'Your friend is muted' : 'Your friend unmuted their microphone',
+            isMuted // Keep notification if muted, remove after delay if unmuted
+        );
     });
 
-    // Receive speaker notification from other user
+    // Receive speaker status from other user
     socket.on('other-user-speaker', ({ isSpeakerOff }) => {
         if (speakerNotification) {
             speakerNotification.remove();
         }
         
-        if (isSpeakerOff) {
-            speakerNotification = showCallNotification('Your friend turned off speaker', true);
-        } else {
-            if (speakerNotification) {
-                speakerNotification.remove();
-                speakerNotification = null;
-            }
-        }
+        speakerNotification = showCallNotification(
+            isSpeakerOff ? 'Your friend turned off their speaker' : 'Your friend turned on their speaker',
+            isSpeakerOff // Keep notification if speaker is off, remove after delay if turned on
+        );
     });
 }
 
@@ -266,7 +246,7 @@ function terminateCall() {
         localStream = null;
     }
     
-    // Remove any audio elements and notifications
+    // Remove audio elements and notifications
     const audioElements = document.querySelectorAll('audio');
     audioElements.forEach(audio => audio.remove());
     
