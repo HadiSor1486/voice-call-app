@@ -20,7 +20,7 @@ let peerConnection = null;
 let currentRoom = null;
 let audioElement = null;
 
-// Ice server configuration with multiple STUN/TURN servers
+// Ice server configuration
 const configuration = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -54,22 +54,15 @@ joinRoomBtn.addEventListener('click', () => {
     socket.emit('join-room', roomCode);
 });
 
+// Handle room join confirmation
+socket.on('room-joined', () => {
+    showCallPage();
+});
+
 // Handle room creation/join errors
 socket.on('room-error', (message) => {
     alert(message);
     currentRoom = null;
-});
-
-socket.on('room-created', () => {
-    showCallPage();
-});
-
-socket.on('user-joined', () => {
-    callNotification.textContent = 'Peer Joined';
-    callNotification.style.display = 'block';
-    setTimeout(() => {
-        callNotification.style.display = 'none';
-    }, 3000);
 });
 
 // Show Call Page

@@ -14,7 +14,7 @@ const io = new Server(server, {
 // Serve static files
 app.use(express.static('public'));
 
-// Rooms data structure with more robust management
+// Rooms data structure with robust management
 const rooms = new Map();
 
 io.on('connection', (socket) => {
@@ -25,11 +25,11 @@ io.on('connection', (socket) => {
             rooms.set(room, new Set());
         }
         const roomParticipants = rooms.get(room);
-        
+
         if (roomParticipants.size < 2) {
             roomParticipants.add(socket.id);
             socket.join(room);
-            console.log(`Room ${room} created or joined by ${socket.id}`);
+            console.log(`Room ${room} created by ${socket.id}`);
             socket.emit('room-created', room);
         } else {
             socket.emit('room-error', 'Room is full');
@@ -39,10 +39,11 @@ io.on('connection', (socket) => {
     socket.on('join-room', (room) => {
         if (rooms.has(room)) {
             const roomParticipants = rooms.get(room);
-            
+
             if (roomParticipants.size < 2) {
                 roomParticipants.add(socket.id);
                 socket.join(room);
+                socket.emit('room-joined', room); // Notify successful join
                 socket.to(room).emit('user-joined', { id: socket.id });
                 console.log(`User ${socket.id} joined room ${room}`);
             } else {
@@ -53,7 +54,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // WebRTC signaling events with enhanced error handling
     socket.on('offer', ({ offer, room }) => {
         socket.to(room).emit('offer', { offer, id: socket.id });
     });
@@ -66,7 +66,6 @@ io.on('connection', (socket) => {
         socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
-    // Hangup event
     socket.on('hangup', (room) => {
         socket.to(room).emit('peer-hangup');
         const roomParticipants = rooms.get(room);
