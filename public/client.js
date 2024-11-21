@@ -17,33 +17,17 @@ let localStream;
 let peerConnection;
 let currentRoom;
 let isCallConnected = false;
+let muteNotification = null;
+let speakerNotification = null;
 
-// Status overlay elements
+const iceServers = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }
+    ]
+};
+
+// Add "By Sor" text
 const callOverlay = document.querySelector('.call-overlay');
-const muteStatusOverlay = document.createElement('div');
-muteStatusOverlay.classList.add('status-overlay');
-muteStatusOverlay.innerHTML = '<i class="fas fa-microphone-slash"></i>';
-muteStatusOverlay.style.position = 'absolute';
-muteStatusOverlay.style.top = '20px';
-muteStatusOverlay.style.right = '20px';
-muteStatusOverlay.style.color = 'rgba(255,255,255,0.5)';
-muteStatusOverlay.style.fontSize = '24px';
-muteStatusOverlay.style.display = 'none';
-
-const speakerStatusOverlay = document.createElement('div');
-speakerStatusOverlay.classList.add('status-overlay');
-speakerStatusOverlay.innerHTML = '<i class="fas fa-volume-mute"></i>';
-speakerStatusOverlay.style.position = 'absolute';
-speakerStatusOverlay.style.top = '20px';
-speakerStatusOverlay.style.left = '20px';
-speakerStatusOverlay.style.color = 'rgba(255,255,255,0.5)';
-speakerStatusOverlay.style.fontSize = '24px';
-speakerStatusOverlay.style.display = 'none';
-
-callOverlay.appendChild(muteStatusOverlay);
-callOverlay.appendChild(speakerStatusOverlay);
-
-// Add "By Hadi" text
 const bysorText = document.createElement('div');
 bysorText.textContent = 'By Hadi';
 bysorText.style.color = '#f5f5f5';
@@ -55,13 +39,8 @@ bysorText.style.fontSize = '18px';
 bysorText.style.fontWeight = 'bold';
 callOverlay.appendChild(bysorText);
 
-const iceServers = {
-    iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
-    ]
-};
-
 function showCallNotification(message, persistent = false) {
+    // Remove existing notification of the same type
     const existingNotification = document.getElementById('call-notification');
     if (existingNotification) {
         existingNotification.remove();
@@ -155,10 +134,6 @@ function startCall() {
 }
 
 function setupCallEventHandlers() {
-    // Reset overlays and flags when setting up new call
-    muteStatusOverlay.style.display = 'none';
-    speakerStatusOverlay.style.display = 'none';
-
     socket.on('user-joined', () => {
         isCallConnected = true;
         showCallNotification('Call connected! You can now talk.');
@@ -233,24 +208,34 @@ function setupCallEventHandlers() {
         }
     });
 
-    // Receive mute status from other user
+    // Receive mute notification from other user
     socket.on('other-user-mute', ({ isMuted }) => {
-        if (isCallConnected) {
-            if (isMuted) {
-                muteStatusOverlay.style.display = 'block';
-            } else {
-                muteStatusOverlay.style.display = 'none';
+        if (muteNotification) {
+            muteNotification.remove();
+        }
+        
+        if (isMuted) {
+            muteNotification = showCallNotification('Your friend is muted', true);
+        } else {
+            if (muteNotification) {
+                muteNotification.remove();
+                muteNotification = null;
             }
         }
     });
 
-    // Receive speaker status from other user
+    // Receive speaker notification from other user
     socket.on('other-user-speaker', ({ isSpeakerOff }) => {
-        if (isCallConnected) {
-            if (isSpeakerOff) {
-                speakerStatusOverlay.style.display = 'block';
-            } else {
-                speakerStatusOverlay.style.display = 'none';
+        if (speakerNotification) {
+            speakerNotification.remove();
+        }
+        
+        if (isSpeakerOff) {
+            speakerNotification = showCallNotification('Your friend turned off speaker', true);
+        } else {
+            if (speakerNotification) {
+                speakerNotification.remove();
+                speakerNotification = null;
             }
         }
     });
@@ -281,12 +266,18 @@ function terminateCall() {
         localStream = null;
     }
     
-    // Remove any audio elements and reset overlays
+    // Remove any audio elements and notifications
     const audioElements = document.querySelectorAll('audio');
     audioElements.forEach(audio => audio.remove());
     
-    muteStatusOverlay.style.display = 'none';
-    speakerStatusOverlay.style.display = 'none';
+    if (muteNotification) {
+        muteNotification.remove();
+        muteNotification = null;
+    }
+    if (speakerNotification) {
+        speakerNotification.remove();
+        speakerNotification = null;
+    }
 
     // Reset to landing page
     landingPage.style.display = 'block';
