@@ -1,89 +1,75 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
-});
+const io = new Server(server);
 
-// Serve static files
-app.use(express.static('public'));
+// Serve static files from 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Rooms data structure with robust management
+// Rooms data structure with enhanced management
 const rooms = new Map();
 
+// Logging middleware
+const log = (message) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${message}`);
+};
+
 io.on('connection', (socket) => {
-    console.log('New user connected:', socket.id);
+    log(`New user connected: ${socket.id}`);
 
     socket.on('create-room', (room) => {
         if (!rooms.has(room)) {
             rooms.set(room, new Set());
         }
-        const roomParticipants = rooms.get(room);
-
-        if (roomParticipants.size < 2) {
-            roomParticipants.add(socket.id);
-            socket.join(room);
-            console.log(`Room ${room} created by ${socket.id}`);
-            socket.emit('room-created', room);
-        } else {
-            socket.emit('room-error', 'Room is full');
-        }
+        const roomMembers = rooms.get(room);
+        roomMembers.add(socket.id);
+        socket.join(room);
+        log(`Room ${room} created by ${socket.id}`);
+        socket.emit('room-created', room);
     });
 
     socket.on('join-room', (room) => {
         if (rooms.has(room)) {
-            const roomParticipants = rooms.get(room);
-
-            if (roomParticipants.size < 2) {
-                roomParticipants.add(socket.id);
-                socket.join(room);
-                socket.emit('room-joined', room); // Notify successful join
-                socket.to(room).emit('user-joined', { id: socket.id });
-                console.log(`User ${socket.id} joined room ${room}`);
-            } else {
-                socket.emit('room-error', 'Room is full');
-            }
+            const roomMembers = rooms.get(room);
+            roomMembers.add(socket.id);
+            socket.join(room);
+            socket.to(room).emit('user-joined', { id: socket.id });
+            log(`User ${socket.id} joined room ${room}`);
         } else {
-            socket.emit('room-error', 'Room does not exist');
+            socket.emit('error', 'Room does not exist.');
         }
     });
 
+    // WebRTC signaling events
     socket.on('offer', ({ offer, room }) => {
+        log(`Offer received in room ${room}`);
         socket.to(room).emit('offer', { offer, id: socket.id });
     });
 
     socket.on('answer', ({ answer, room }) => {
+        log(`Answer received in room ${room}`);
         socket.to(room).emit('answer', { answer, id: socket.id });
     });
 
     socket.on('new-ice-candidate', ({ candidate, room }) => {
+        log(`ICE Candidate received in room ${room}`);
         socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
-    socket.on('hangup', (room) => {
-        socket.to(room).emit('peer-hangup');
-        const roomParticipants = rooms.get(room);
-        if (roomParticipants) {
-            roomParticipants.delete(socket.id);
-            if (roomParticipants.size === 0) {
-                rooms.delete(room);
-            }
-        }
-    });
-
+    // Disconnect handling
     socket.on('disconnect', () => {
-        console.log(`User ${socket.id} disconnected`);
-        for (const [room, participants] of rooms.entries()) {
-            if (participants.has(socket.id)) {
-                participants.delete(socket.id);
-                socket.to(room).emit('peer-left');
-                if (participants.size === 0) {
+        log(`User ${socket.id} disconnected`);
+        for (const [room, members] of rooms.entries()) {
+            if (members.has(socket.id)) {
+                members.delete(socket.id);
+                socket.to(room).emit('user-left', { id: socket.id });
+                
+                if (members.size === 0) {
                     rooms.delete(room);
                 }
                 break;
@@ -92,7 +78,13 @@ io.on('connection', (socket) => {
     });
 });
 
+// Error handling middleware
+app.use((err, req, res, next) => {
+    log(`Error: ${err.message}`);
+    res.status(500).send('Something went wrong!');
+});
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    log(`Server running on port ${PORT}`);
 });
