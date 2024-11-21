@@ -1,94 +1,213 @@
-/* Previous styles remain the same */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
 
-/* Call Notification Styling */
-#call-notification {
-    position: fixed;
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
+body, html {
+    height: 100%;
+    overflow: hidden;
+}
+
+.background-overlay {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.landing-container {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 20px;
+    width: 100%;
+    max-width: 500px;
+    padding: 40px;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.logo-container {
+    margin-bottom: 30px;
+    color: white;
+}
+
+.logo-container h1 {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.logo-container p {
+    color: rgba(255,255,255,0.7);
+}
+
+.glowing-btn {
+    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 50px;
+    font-weight: 600;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 0 auto;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+}
+
+.glowing-btn:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 25px rgba(0,0,0,0.3);
+}
+
+.separator {
+    position: relative;
+    text-align: center;
+    color: white;
+    margin: 20px 0;
+}
+
+.separator span {
+    background: rgba(255,255,255,0.1);
+    padding: 0 10px;
+    position: relative;
+    z-index: 1;
+}
+
+.separator::before {
+    content: '';
+    position: absolute;
     top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 20px 40px;
-    font-size: 24px;
-    border-radius: 10px;
-    z-index: 1000;
+    left: 0;
+    right: 0;
+    border-top: 2px solid rgba(255,255,255,0.2);
+    z-index: 0;
 }
 
-/* Room Code Container */
-#generated-room-code-container {
+.input-group {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    gap: 15px;
+}
+
+#room-code-input {
+    background: rgba(255,255,255,0.1);
+    border: 2px solid rgba(255,255,255,0.2);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 50px;
+    text-align: center;
+    font-size: 16px;
+}
+
+#room-code-input::placeholder {
+    color: rgba(255,255,255,0.5);
+}
+
+.generated-room-container {
+    margin-top: 15px;
+}
+
+.room-code-display {
+    display: flex;
     justify-content: center;
-    margin-top: 10px;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.1);
+    padding: 10px 20px;
+    border-radius: 50px;
 }
 
-#generated-room-code {
-    color: white;
-    margin-right: 10px;
-    background-color: rgba(0, 0, 0, 0.5);
-    padding: 5px 10px;
-    border-radius: 5px;
-}
-
-#copy-room-code {
-    background-color: rgba(255, 255, 255, 0.2);
-    color: white;
+.copy-btn {
+    background: transparent;
     border: none;
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-}
-
-#copy-room-code:hover {
-    background-color: rgba(255, 255, 255, 0.3);
-}
-
-/* Button Icons */
-#buttons button {
-    background-color: rgba(0, 0, 0, 0.5);
     color: white;
-    border: none;
-    border-radius: 50%;
-    width: 60px;
-    height: 60px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.copy-btn:hover {
+    color: #4ecdc4;
+}
+
+.footer {
+    margin-top: 20px;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.8rem;
+}
+
+/* Call Page Styles */
+#call-page {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    height: 100vh;
     display: flex;
     justify-content: center;
     align-items: center;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
 }
 
-#buttons button i {
+#call-controls {
+    position: absolute;
+    bottom: 50px;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.control-group {
+    display: flex;
+    gap: 20px;
+}
+
+.control-btn {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     font-size: 24px;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
 }
 
-#buttons button:hover {
-    background-color: rgba(255, 255, 255, 0.3);
+.control-btn:hover {
+    background: rgba(255,255,255,0.2);
 }
 
-/* Mute and Hangup specific styles */
-#mute-btn .fa-microphone-slash,
-#hangup-btn .fa-phone-slash {
-    color: red;
+.hangup {
+    background: rgba(255,0,0,0.2);
 }
 
-/* Responsive Design */
-@media (max-width: 600px) {
-    #buttons {
-        width: 250px;
-    }
+.hangup:hover {
+    background: rgba(255,0,0,0.3);
+}
 
-    #buttons button {
-        width: 50px;
-        height: 50px;
-    }
+#call-notification {
+    position: absolute;
+    top: 50px;
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 50px;
+    font-weight: bold;
+    animation: pulse 1.5s infinite;
+}
 
-    #buttons button i {
-        font-size: 20px;
-    }
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
 }

@@ -19,6 +19,9 @@ let localStream;
 let peerConnection;
 let currentRoom;
 
+// Track number of participants in the room
+let participantsInRoom = 0;
+
 // Ice server configuration
 const iceServers = {
     iceServers: [
@@ -59,58 +62,76 @@ function showCallPage() {
     startCall();
 }
 
-// Handle WebRTC connection
-function startCall() {
-    navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then((stream) => {
-        localStream = stream;
-        peerConnection = new RTCPeerConnection(iceServers);
+// Start call and reset participants count
+async function startCall() {
+    participantsInRoom = 1; // Local user counts as first participant
+    try {
+        navigator.mediaDevices.getUserMedia({ audio: true, video: false }).then((stream) => {
+            localStream = stream;
+            peerConnection = new RTCPeerConnection(iceServers);
 
-        // Add local stream to the connection
-        localStream.getTracks().forEach((track) => {
-            peerConnection.addTrack(track, localStream);
+            // Add local stream to the connection
+            localStream.getTracks().forEach((track) => {
+                peerConnection.addTrack(track, localStream);
+            });
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('new-ice-candidate', {
+                        candidate: event.candidate,
+                        room: currentRoom
+                    });
+                }
+            };
+
+            peerConnection.ontrack = (event) => {
+                const audio = document.createElement('audio');
+                audio.srcObject = event.streams[0];
+                audio.autoplay = true;
+                document.body.appendChild(audio);
+            };
+
+            socket.on('offer', async ({ offer }) => {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                socket.emit('answer', { answer, room: currentRoom });
+            });
+
+            socket.on('answer', async ({ answer }) => {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+            });
+
+            socket.on('new-ice-candidate', ({ candidate }) => {
+                peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            });
+
+            socket.emit('room-joined', currentRoom);
+            callNotification.style.display = 'block';
+
+            peerConnection.createOffer().then((offer) => {
+                peerConnection.setLocalDescription(offer);
+                socket.emit('offer', { offer, room: currentRoom });
+            });
         });
+    } catch (error) {
+        console.error('Call start error:', error);
+    }
+}
 
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('new-ice-candidate', {
-                    candidate: event.candidate,
-                    room: currentRoom
-                });
-            }
-        };
-
-        peerConnection.ontrack = (event) => {
-            const audio = document.createElement('audio');
-            audio.srcObject = event.streams[0];
-            audio.autoplay = true;
-            document.body.appendChild(audio);
-        };
-
-        socket.on('offer', async ({ offer }) => {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            socket.emit('answer', { answer, room: currentRoom });
-        });
-
-        socket.on('answer', async ({ answer }) => {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-        });
-
-        socket.on('new-ice-candidate', ({ candidate }) => {
-            peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        });
-
-        // Show call notification when room is joined
-        socket.emit('room-joined', currentRoom);
+// Listen for a new user joining
+socket.on('user-joined', () => {
+    participantsInRoom++;
+    if (participantsInRoom >= 2) {
+        callNotification.textContent = 'Peer Joined';
         callNotification.style.display = 'block';
 
-        peerConnection.createOffer().then((offer) => {
-            peerConnection.setLocalDescription(offer);
-            socket.emit('offer', { offer, room: currentRoom });
-        });
-    });
-}
+        // Automatically hide after 3 seconds
+        setTimeout(() => {
+            callNotification.style.display = 'none';
+        }, 3000);
+    }
+});
 
 // Mute functionality
 muteBtn.addEventListener('click', () => {
@@ -136,6 +157,7 @@ hangupBtn.addEventListener('click', () => {
     endCall();
 });
 
+// End call
 function endCall() {
     if (peerConnection) {
         peerConnection.close();
