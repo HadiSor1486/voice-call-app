@@ -1,17 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoiceConnect - Seamless Communication</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
 <body>
     <div class="app-container">
         <div id="landing-page" class="page">
             <div class="logo-container">
                 <h1>VoiceConnect</h1>
-                <p>Seamless Communication</p>
+                <p>Simple. Secure. Connected.</p>
             </div>
             <div class="room-actions">
-                <button id="create-room" class="btn">
+                <button id="create-room" class="btn btn-primary">
                     <i class="fas fa-plus-circle"></i> Create Room
                 </button>
                 <div class="join-room-container">
                     <input type="text" id="room-code-input" placeholder="Enter Room Code" maxlength="6">
-                    <button id="join-room" class="btn">Join Room</button>
+                    <button id="join-room" class="btn btn-secondary">
+                        <i class="fas fa-sign-in-alt"></i> Join Room
+                    </button>
                 </div>
                 <div id="generated-room-code" class="room-code-display">
                     <span>Room Code: </span>
@@ -24,18 +36,19 @@
         </div>
 
         <div id="call-page" class="page">
-            <div class="call-background"></div>
-            <div class="call-overlay">
-                <div class="call-controls">
-                    <button id="mute-btn" class="control-btn">
-                        <i class="fas fa-microphone"></i>
-                    </button>
-                    <button id="hangup-btn" class="control-btn">
-                        <i class="fas fa-phone-slash"></i>
-                    </button>
-                    <button id="speaker-btn" class="control-btn">
-                        <i class="fas fa-volume-up"></i>
-                    </button>
+            <div id="call-background">
+                <div class="call-overlay">
+                    <div id="buttons" class="call-controls">
+                        <button id="mute-btn" class="control-btn">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button id="hangup-btn" class="control-btn">
+                            <i class="fas fa-phone-slash"></i>
+                        </button>
+                        <button id="speaker-btn" class="control-btn">
+                            <i class="fas fa-volume-up"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -44,3 +57,4 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="client.js"></script>
 </body>
+</html>
