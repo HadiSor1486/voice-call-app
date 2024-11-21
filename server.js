@@ -38,8 +38,8 @@ io.on('connection', (socket) => {
             const roomMembers = rooms.get(room);
             roomMembers.add(socket.id);
             socket.join(room);
-            // Notify all other users in the room that someone joined
-            socket.to(room).emit('user-joined', { id: socket.id });
+            // Notify ALL users in the room (including the joining user) that someone joined
+            io.to(room).emit('user-joined', { id: socket.id });
             log(`User ${socket.id} joined room ${room}`);
         } else {
             socket.emit('error', 'Room does not exist.');
