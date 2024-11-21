@@ -23,6 +23,19 @@ const iceServers = {
     ]
 };
 
+// Add "By Sor" text
+const callOverlay = document.querySelector('.call-overlay');
+const bysorText = document.createElement('div');
+bysorText.textContent = 'By Sor';
+bysorText.style.color = '#3A56C5';
+bysorText.style.position = 'absolute';
+bysorText.style.top = '10px';
+bysorText.style.left = '50%';
+bysorText.style.transform = 'translateX(-50%)';
+bysorText.style.fontSize = '18px';
+bysorText.style.fontWeight = 'bold';
+callOverlay.appendChild(bysorText);
+
 function showCallNotification(message) {
     const notificationEl = document.createElement('div');
     notificationEl.id = 'call-notification';
