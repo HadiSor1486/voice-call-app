@@ -49,7 +49,6 @@ joinRoomBtn.addEventListener('click', () => {
     if (!roomCode) return alert('Please enter a room code.');
     currentRoom = roomCode;
     socket.emit('join-room', roomCode);
-    showCallPage();
 });
 
 // Show Call Page
@@ -135,6 +134,15 @@ function endCall() {
 }
 
 // Socket.IO Event Handlers
+socket.on('room-created', () => {
+    console.log('Room created successfully.');
+});
+
+socket.on('room-joined', () => {
+    console.log('Joined room successfully.');
+    showCallPage();
+});
+
 socket.on('offer', async (data) => {
     if (!peerConnection) {
         peerConnection = new RTCPeerConnection(configuration);
