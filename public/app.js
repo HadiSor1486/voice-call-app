@@ -169,4 +169,4 @@ socket.on('new-ice-candidate', async (data) => {
 // Peer Hangup Event
 socket.on('peer-hangup', () => {
     endCall();
-});
+})
