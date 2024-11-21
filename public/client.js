@@ -10,9 +10,9 @@ const copyRoomCodeBtn = document.getElementById('copy-room-code');
 
 // Call Page Elements
 const callPage = document.getElementById('call-page');
-const muteBtn = document.getElementById('mute-btn');
-const hangupBtn = document.getElementById('hangup-btn');
-const speakerBtn = document.getElementById('speaker-btn');
+const muteButton = document.getElementById('mute-btn');
+const hangupButton = document.getElementById('hangup-btn');
+const speakerButton = document.getElementById('speaker-btn');
 const callNotification = document.getElementById('call-notification');
 
 let localStream = null;
@@ -153,26 +153,26 @@ socket.on('new-ice-candidate', async (data) => {
 });
 
 // Mute Functionality
-muteBtn.addEventListener('click', () => {
+muteButton.addEventListener('click', () => {
     if (localStream) {
         const audioTrack = localStream.getAudioTracks()[0];
         audioTrack.enabled = !audioTrack.enabled;
-        muteBtn.querySelector('i').classList.toggle('fa-microphone-slash');
-        muteBtn.querySelector('i').classList.toggle('fa-microphone');
+        muteButton.querySelector('i').classList.toggle('fa-microphone-slash');
+        muteButton.querySelector('i').classList.toggle('fa-microphone');
     }
 });
 
 // Speaker Mute Functionality
-speakerBtn.addEventListener('click', () => {
+speakerButton.addEventListener('click', () => {
     if (audioElement) {
         audioElement.muted = !audioElement.muted;
-        speakerBtn.querySelector('i').classList.toggle('fa-volume-mute');
-        speakerBtn.querySelector('i').classList.toggle('fa-volume-up');
+        speakerButton.querySelector('i').classList.toggle('fa-volume-mute');
+        speakerButton.querySelector('i').classList.toggle('fa-volume-up');
     }
 });
 
 // Hangup Functionality
-hangupBtn.addEventListener('click', () => {
+hangupButton.addEventListener('click', () => {
     socket.emit('hangup', currentRoom);
     endCall();
 });
