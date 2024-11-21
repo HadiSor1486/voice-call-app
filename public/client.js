@@ -50,12 +50,14 @@ joinRoomBtn.addEventListener('click', () => {
     if (!roomCode) return alert('Please enter a room code.');
     currentRoom = roomCode;
     socket.emit('join-room', roomCode);
+    showCallPage();
 });
 
 // Show call page
 function showCallPage() {
     landingPage.style.display = 'none';
     callPage.style.display = 'block';
+    startCall();
 }
 
 // Start call and reset participants count
@@ -87,9 +89,24 @@ async function startCall() {
                 document.body.appendChild(audio);
             };
 
-            socket.emit('room-joined', currentRoom);
+            socket.on('offer', async ({ offer }) => {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                socket.emit('answer', { answer, room: currentRoom });
+            });
 
-            // Create and send offer
+            socket.on('answer', async ({ answer }) => {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+            });
+
+            socket.on('new-ice-candidate', ({ candidate }) => {
+                peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            });
+
+            socket.emit('room-joined', currentRoom);
+            callNotification.style.display = 'block';
+
             peerConnection.createOffer().then((offer) => {
                 peerConnection.setLocalDescription(offer);
                 socket.emit('offer', { offer, room: currentRoom });
@@ -99,12 +116,6 @@ async function startCall() {
         console.error('Call start error:', error);
     }
 }
-
-// Listen for room-joined confirmation
-socket.on('room-joined', () => {
-    showCallPage();
-    startCall();
-});
 
 // Listen for a new user joining
 socket.on('user-joined', () => {
@@ -158,20 +169,4 @@ function endCall() {
 // Listen for hangup from other peer
 socket.on('peer-hangup', () => {
     endCall();
-});
-
-// Socket events for handling offer, answer, and ice candidates
-socket.on('offer', async ({ offer }) => {
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    socket.emit('answer', { answer, room: currentRoom });
-});
-
-socket.on('answer', async ({ answer }) => {
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-});
-
-socket.on('new-ice-candidate', ({ candidate }) => {
-    peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
 });
