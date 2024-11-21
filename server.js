@@ -19,33 +19,57 @@ io.on('connection', (socket) => {
     // Handle 'create-room' event
     socket.on('create-room', (room) => {
         if (!rooms[room]) {
-            rooms[room] = [];
+            rooms[room] = {
+                participants: [],
+                offer: null
+            };
         }
-        rooms[room].push(socket.id);
+        rooms[room].participants.push(socket.id);
         socket.join(room);
-        console.log(`Room ${room} created or joined by ${socket.id}`);
+        console.log(`Room ${room} created by ${socket.id}`);
         socket.emit('room-created', room);
     });
 
     // Handle 'join-room' event
     socket.on('join-room', (room) => {
         if (rooms[room]) {
-            rooms[room].push(socket.id);
-            socket.join(room);
-            socket.to(room).emit('user-joined', { id: socket.id });
-            console.log(`User ${socket.id} joined room ${room}`);
+            if (rooms[room].participants.length < 2) {
+                rooms[room].participants.push(socket.id);
+                socket.join(room);
+                
+                // Notify other participants that a new user has joined
+                socket.to(room).emit('user-joined', { 
+                    id: socket.id, 
+                    message: 'Your friend has joined the call!' 
+                });
+                
+                // Send the existing offer to the new participant if available
+                if (rooms[room].offer) {
+                    socket.emit('existing-offer', rooms[room].offer);
+                }
+                
+                console.log(`User ${socket.id} joined room ${room}`);
+            } else {
+                socket.emit('room-error', 'Room is full');
+            }
         } else {
-            socket.emit('error', 'Room does not exist.');
+            socket.emit('room-error', 'Room does not exist');
         }
     });
 
-    // Hangup event
-    socket.on('hangup', (room) => {
-        socket.to(room).emit('peer-hangup');
+    // Store WebRTC offers
+    socket.on('store-offer', ({ offer, room }) => {
+        if (rooms[room]) {
+            rooms[room].offer = offer;
+        }
     });
 
-    // WebRTC signaling events remain the same as in previous version
+    // WebRTC signaling events
     socket.on('offer', ({ offer, room }) => {
+        // Store the offer
+        if (rooms[room]) {
+            rooms[room].offer = offer;
+        }
         socket.to(room).emit('offer', { offer, id: socket.id });
     });
 
@@ -57,15 +81,26 @@ io.on('connection', (socket) => {
         socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
+    // Hangup event
+    socket.on('hangup', (room) => {
+        socket.to(room).emit('peer-hangup');
+        
+        // Remove the room if exists
+        if (rooms[room]) {
+            delete rooms[room];
+        }
+    });
+
     // Handle user disconnection
     socket.on('disconnect', () => {
         console.log(`User ${socket.id} disconnected`);
         for (const room in rooms) {
-            const index = rooms[room].indexOf(socket.id);
+            const index = rooms[room].participants.indexOf(socket.id);
             if (index !== -1) {
-                rooms[room].splice(index, 1);
-                socket.to(room).emit('user-left', { id: socket.id });
-                if (rooms[room].length === 0) {
+                rooms[room].participants.splice(index, 1);
+                socket.to(room).emit('peer-hangup');
+                
+                if (rooms[room].participants.length === 0) {
                     delete rooms[room];
                 }
                 break;
