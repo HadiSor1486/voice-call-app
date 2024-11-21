@@ -16,6 +16,7 @@ const speakerBtn = document.getElementById('speaker-btn');
 let localStream;
 let peerConnection;
 let currentRoom;
+let isCallConnected = false;
 
 const iceServers = {
     iceServers: [
@@ -26,7 +27,7 @@ const iceServers = {
 // Add "By Sor" text
 const callOverlay = document.querySelector('.call-overlay');
 const bysorText = document.createElement('div');
-bysorText.textContent = 'By Sor';
+bysorText.textContent = 'By Hadi';
 bysorText.style.color = '#f5f5f5';
 bysorText.style.position = 'absolute';
 bysorText.style.top = '10px';
@@ -36,7 +37,7 @@ bysorText.style.fontSize = '18px';
 bysorText.style.fontWeight = 'bold';
 callOverlay.appendChild(bysorText);
 
-function showCallNotification(message) {
+function showCallNotification(message, persistent = false) {
     const notificationEl = document.createElement('div');
     notificationEl.id = 'call-notification';
     notificationEl.textContent = message;
@@ -46,12 +47,16 @@ function showCallNotification(message) {
     
     notificationEl.classList.add('show');
     
-    setTimeout(() => {
-        notificationEl.classList.remove('show');
+    if (!persistent) {
         setTimeout(() => {
-            document.body.removeChild(notificationEl);
-        }, 500);
-    }, 5000);
+            notificationEl.classList.remove('show');
+            setTimeout(() => {
+                document.body.removeChild(notificationEl);
+            }, 500);
+        }, 5000);
+    }
+    
+    return notificationEl;
 }
 
 createRoomBtn.addEventListener('click', () => {
@@ -121,12 +126,15 @@ function startCall() {
 }
 
 function setupCallEventHandlers() {
+    let muteNotification = null;
+    let speakerNotification = null;
+
     socket.on('user-joined', () => {
+        isCallConnected = true;
         showCallNotification('Call connected! You can now talk.');
     });
 
     socket.on('offer', async ({ offer }) => {
-        showCallNotification('Incoming call request...');
         await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);
@@ -141,10 +149,73 @@ function setupCallEventHandlers() {
         peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
     });
 
-    // New handler for call termination
     socket.on('call-ended', () => {
         showCallNotification('Call has been terminated.');
         terminateCall();
+    });
+
+    // Mute notification handler
+    muteBtn.addEventListener('click', () => {
+        const audioTrack = localStream.getAudioTracks()[0];
+        audioTrack.enabled = !audioTrack.enabled;
+        muteBtn.querySelector('i').classList.toggle('fa-microphone-slash');
+        muteBtn.querySelector('i').classList.toggle('fa-microphone');
+        
+        // If call is connected, send mute status to other user
+        if (isCallConnected) {
+            socket.emit('user-mute', { 
+                room: currentRoom, 
+                isMuted: !audioTrack.enabled 
+            });
+        }
+    });
+
+    // Speaker notification handler
+    speakerBtn.addEventListener('click', () => {
+        const audio = document.querySelector('audio');
+        if (audio) {
+            audio.muted = !audio.muted;
+            speakerBtn.querySelector('i').classList.toggle('fa-volume-mute');
+            speakerBtn.querySelector('i').classList.toggle('fa-volume-up');
+            
+            // If call is connected, send speaker status to other user
+            if (isCallConnected) {
+                socket.emit('user-speaker', { 
+                    room: currentRoom, 
+                    isSpeakerOff: audio.muted 
+                });
+            }
+        }
+    });
+
+    // Receive mute notification from other user
+    socket.on('other-user-mute', ({ isMuted }) => {
+        // Remove previous mute notification if exists
+        if (muteNotification) {
+            muteNotification.remove();
+        }
+        
+        if (isMuted) {
+            muteNotification = showCallNotification('Your friend is muted', true);
+        } else if (muteNotification) {
+            muteNotification.remove();
+            muteNotification = null;
+        }
+    });
+
+    // Receive speaker notification from other user
+    socket.on('other-user-speaker', ({ isSpeakerOff }) => {
+        // Remove previous speaker notification if exists
+        if (speakerNotification) {
+            speakerNotification.remove();
+        }
+        
+        if (isSpeakerOff) {
+            speakerNotification = showCallNotification('Your friend turned off speaker', true);
+        } else if (speakerNotification) {
+            speakerNotification.remove();
+            speakerNotification = null;
+        }
     });
 }
 
@@ -155,22 +226,6 @@ function createAndSendOffer() {
             socket.emit('offer', { offer, room: currentRoom });
         });
 }
-
-muteBtn.addEventListener('click', () => {
-    const audioTrack = localStream.getAudioTracks()[0];
-    audioTrack.enabled = !audioTrack.enabled;
-    muteBtn.querySelector('i').classList.toggle('fa-microphone-slash');
-    muteBtn.querySelector('i').classList.toggle('fa-microphone');
-});
-
-speakerBtn.addEventListener('click', () => {
-    const audio = document.querySelector('audio');
-    if (audio) {
-        audio.muted = !audio.muted;
-        speakerBtn.querySelector('i').classList.toggle('fa-volume-mute');
-        speakerBtn.querySelector('i').classList.toggle('fa-volume-up');
-    }
-});
 
 hangupBtn.addEventListener('click', () => {
     // Notify server that user is leaving the call
@@ -198,4 +253,5 @@ function terminateCall() {
     landingPage.style.display = 'block';
     callPage.style.display = 'none';
     currentRoom = null;
+    isCallConnected = false;
 }

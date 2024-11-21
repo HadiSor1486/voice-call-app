@@ -62,6 +62,17 @@ io.on('connection', (socket) => {
         socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
+    // New handlers for user mute and speaker events
+    socket.on('user-mute', ({ room, isMuted }) => {
+        log(`User ${socket.id} mute status: ${isMuted}`);
+        socket.to(room).emit('other-user-mute', { isMuted });
+    });
+
+    socket.on('user-speaker', ({ room, isSpeakerOff }) => {
+        log(`User ${socket.id} speaker status: ${isSpeakerOff}`);
+        socket.to(room).emit('other-user-speaker', { isSpeakerOff });
+    });
+
     // Handle user leaving the call
     socket.on('leave-call', (room) => {
         // Broadcast to all other users in the room that someone left
