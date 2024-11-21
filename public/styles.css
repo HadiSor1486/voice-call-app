@@ -47,6 +47,52 @@ body, html {
     color: rgba(255,255,255,0.7);
 }
 
+.glowing-btn {
+    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 50px;
+    font-weight: 600;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 0 auto;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+}
+
+.glowing-btn:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 25px rgba(0,0,0,0.3);
+}
+
+.separator {
+    position: relative;
+    text-align: center;
+    color: white;
+    margin: 20px 0;
+}
+
+.separator span {
+    background: rgba(255,255,255,0.1);
+    padding: 0 10px;
+    position: relative;
+    z-index: 1;
+}
+
+.separator::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    border-top: 2px solid rgba(255,255,255,0.2);
+    z-index: 0;
+}
+
 .input-group {
     display: flex;
     flex-direction: column;
@@ -94,32 +140,74 @@ body, html {
     color: #4ecdc4;
 }
 
-.glowing-btn {
-    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-    color: white;
-    border: none;
-    padding: 12px 25px;
-    border-radius: 50px;
-    font-weight: 600;
-    text-transform: uppercase;
-    transition: all 0.3s ease;
+.footer {
+    margin-top: 20px;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.8rem;
+}
+
+/* Call Page Styles */
+#call-page {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    height: 100vh;
     display: flex;
-    align-items: center;
     justify-content: center;
-    gap: 10px;
-    margin: 0 auto;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+    align-items: center;
 }
 
-.glowing-btn:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 15px 25px rgba(0,0,0,0.3);
+#call-controls {
+    position: absolute;
+    bottom: 50px;
+    display: flex;
+    justify-content: center;
+    width: 100%;
 }
 
-/* Removing call page styles to ensure clean landing page */
-#call-page,
-#call-controls,
-.control-btn,
+.control-group {
+    display: flex;
+    gap: 20px;
+}
+
+.control-btn {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+}
+
+.control-btn:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.hangup {
+    background: rgba(255,0,0,0.2);
+}
+
+.hangup:hover {
+    background: rgba(255,0,0,0.3);
+}
+
 #call-notification {
-    display: none !important;
+    position: absolute;
+    top: 50px;
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 50px;
+    font-weight: bold;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
 }
