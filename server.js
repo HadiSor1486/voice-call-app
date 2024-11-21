@@ -1,62 +1,79 @@
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
+const { Server } = require('socket.io');
 
 const app = express();
-app.use(express.static('public'));
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = new Server(server);
 
-const rooms = new Map(); // Store rooms and their participants
+// Serve static files
+app.use(express.static('public'));
 
+// Rooms data structure
+const rooms = {};
+
+// Handle WebSocket connections
 io.on('connection', (socket) => {
-    console.log('New client connected');
+    console.log('New user connected:', socket.id);
 
-    socket.on('create-room', (roomCode) => {
-        if (!rooms.has(roomCode)) {
-            rooms.set(roomCode, []);
-            socket.join(roomCode);
-            socket.emit('join-successful', roomCode);
+    // Handle 'create-room' event
+    socket.on('create-room', (room) => {
+        if (!rooms[room]) {
+            rooms[room] = [];
+        }
+        rooms[room].push(socket.id);
+        socket.join(room);
+        console.log(`Room ${room} created or joined by ${socket.id}`);
+        socket.emit('room-created', room); // Send back confirmation of room creation
+    });
+
+    // Handle 'join-room' event
+    socket.on('join-room', (room) => {
+        if (rooms[room]) {
+            rooms[room].push(socket.id);
+            socket.join(room);
+            socket.to(room).emit('user-joined', { id: socket.id }); // Notify others in the room
+            console.log(`User ${socket.id} joined room ${room}`);
         } else {
-            socket.emit('room-error', 'Room already exists');
+            socket.emit('error', 'Room does not exist.');
         }
     });
 
-    socket.on('join-room', (roomCode) => {
-        if (rooms.has(roomCode)) {
-            rooms.get(roomCode).push(socket.id);
-            socket.join(roomCode);
-            socket.emit('join-successful', roomCode);
-            io.to(roomCode).emit('user-joined', { message: 'New participant joined' });
-        } else {
-            socket.emit('room-error', 'Room does not exist');
-        }
+    // Handle WebRTC signaling
+    socket.on('offer', ({ offer, room }) => {
+        console.log(`Offer received in room ${room}`);
+        socket.to(room).emit('offer', { offer, id: socket.id });
     });
 
-    socket.on('offer', (data) => {
-        const { offer, room } = data;
-        io.to(room).emit('offer', { offer, senderId: socket.id });
+    socket.on('answer', ({ answer, room }) => {
+        console.log(`Answer received in room ${room}`);
+        socket.to(room).emit('answer', { answer, id: socket.id });
     });
 
-    socket.on('answer', (data) => {
-        const { answer, room } = data;
-        io.to(room).emit('answer', { answer, senderId: socket.id });
+    socket.on('new-ice-candidate', ({ candidate, room }) => {
+        console.log(`ICE Candidate received in room ${room}`);
+        socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
-    socket.on('new-ice-candidate', (data) => {
-        const { candidate, room } = data;
-        io.to(room).emit('new-ice-candidate', { candidate, senderId: socket.id });
-    });
-
-    socket.on('hangup', (room) => {
-        rooms.set(room, []);
-        io.to(room).emit('peer-hangup');
-    });
-
+    // Handle user disconnection
     socket.on('disconnect', () => {
-        console.log('Client disconnected');
+        console.log(`User ${socket.id} disconnected`);
+        for (const room in rooms) {
+            const index = rooms[room].indexOf(socket.id);
+            if (index !== -1) {
+                rooms[room].splice(index, 1);
+                socket.to(room).emit('user-left', { id: socket.id });
+                if (rooms[room].length === 0) {
+                    delete rooms[room];
+                }
+                break;
+            }
+        }
     });
 });
 
+// Start the server
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
