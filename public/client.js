@@ -23,6 +23,26 @@ const iceServers = {
     ]
 };
 
+function showCallNotification(message) {
+    const notificationEl = document.createElement('div');
+    notificationEl.id = 'call-notification';
+    notificationEl.textContent = message;
+    document.body.appendChild(notificationEl);
+    
+    // Trigger reflow to enable animation
+    void notificationEl.offsetWidth;
+    
+    notificationEl.classList.add('show');
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        notificationEl.classList.remove('show');
+        setTimeout(() => {
+            document.body.removeChild(notificationEl);
+        }, 500);
+    }, 5000);
+}
+
 createRoomBtn.addEventListener('click', () => {
     const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
     generatedRoomCode.style.display = 'flex';
@@ -90,7 +110,12 @@ function startCall() {
 }
 
 function setupCallEventHandlers() {
+    socket.on('user-joined', () => {
+        showCallNotification('Call connected! You can now talk.');
+    });
+
     socket.on('offer', async ({ offer }) => {
+        showCallNotification('Incoming call request...');
         await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await peerConnection.createAnswer();
         await peerConnection.setLocalDescription(answer);

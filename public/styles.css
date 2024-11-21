@@ -6,6 +6,8 @@
     --accent-color: #3498db;
     --background-color: #f4f4f4;
     --text-color: #333;
+    --call-notification-bg: #4CAF50;
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 * {
@@ -149,4 +151,45 @@ body {
 
 .control-btn i {
     font-size: 24px;
+}
+
+/* Call Notification Styles */
+#call-notification {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--call-notification-bg);
+    color: white;
+    padding: 15px 25px;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    z-index: 1000;
+    font-family: 'Poppins', sans-serif;
+    animation: slideIn 0.5s ease-out, pulse 2s infinite;
+    max-width: 300px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+#call-notification.show {
+    opacity: 1;
+}
+
+@keyframes slideIn {
+    from {
+        top: -50px;
+        opacity: 0;
+    }
+    to {
+        top: 20px;
+        opacity: 1;
+    }
+}
+
+@keyframes pulse {
+    0% { transform: translateX(-50%) scale(1); }
+    50% { transform: translateX(-50%) scale(1.03); }
+    100% { transform: translateX(-50%) scale(1); }
 }
