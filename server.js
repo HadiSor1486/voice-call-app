@@ -24,41 +24,34 @@ io.on('connection', (socket) => {
         rooms[room].push(socket.id);
         socket.join(room);
         console.log(`Room ${room} created or joined by ${socket.id}`);
-        socket.emit('room-created', room);
+        socket.emit('room-created', room); // Send back confirmation of room creation
     });
 
     // Handle 'join-room' event
     socket.on('join-room', (room) => {
         if (rooms[room]) {
-            if (rooms[room].length >= 2) {
-                socket.emit('error', 'Room is full.');
-                return;
-            }
             rooms[room].push(socket.id);
             socket.join(room);
-            socket.to(room).emit('user-joined', { id: socket.id });
+            socket.to(room).emit('user-joined', { id: socket.id }); // Notify others in the room
             console.log(`User ${socket.id} joined room ${room}`);
-            socket.emit('room-joined', room);
         } else {
             socket.emit('error', 'Room does not exist.');
         }
     });
 
-    // Hangup event
-    socket.on('hangup', (room) => {
-        socket.to(room).emit('peer-hangup');
-    });
-
-    // WebRTC signaling events
+    // Handle WebRTC signaling
     socket.on('offer', ({ offer, room }) => {
+        console.log(`Offer received in room ${room}`);
         socket.to(room).emit('offer', { offer, id: socket.id });
     });
 
     socket.on('answer', ({ answer, room }) => {
+        console.log(`Answer received in room ${room}`);
         socket.to(room).emit('answer', { answer, id: socket.id });
     });
 
     socket.on('new-ice-candidate', ({ candidate, room }) => {
+        console.log(`ICE Candidate received in room ${room}`);
         socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
