@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VoiceConnect - Seamless Communication</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -16,12 +16,12 @@
                 <p>Simple. Secure. Connected.</p>
             </div>
             <div class="room-actions">
-                <button id="create-room" class="btn btn-primary">
+                <button id="create-room" class="btn">
                     <i class="fas fa-plus-circle"></i> Create Room
                 </button>
                 <div class="join-room-container">
                     <input type="text" id="room-code-input" placeholder="Enter Room Code" maxlength="6">
-                    <button id="join-room" class="btn btn-secondary">
+                    <button id="join-room" class="btn">
                         <i class="fas fa-sign-in-alt"></i> Join Room
                     </button>
                 </div>
@@ -36,19 +36,17 @@
         </div>
 
         <div id="call-page" class="page">
-            <div id="call-background">
-                <div class="call-overlay">
-                    <div id="buttons" class="call-controls">
-                        <button id="mute-btn" class="control-btn">
-                            <i class="fas fa-microphone"></i>
-                        </button>
-                        <button id="hangup-btn" class="control-btn">
-                            <i class="fas fa-phone-slash"></i>
-                        </button>
-                        <button id="speaker-btn" class="control-btn">
-                            <i class="fas fa-volume-up"></i>
-                        </button>
-                    </div>
+            <div class="call-overlay">
+                <div class="call-controls">
+                    <button id="mute-btn" class="control-btn">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+                    <button id="hangup-btn" class="control-btn">
+                        <i class="fas fa-phone-slash"></i>
+                    </button>
+                    <button id="speaker-btn" class="control-btn">
+                        <i class="fas fa-volume-up"></i>
+                    </button>
                 </div>
             </div>
         </div>
