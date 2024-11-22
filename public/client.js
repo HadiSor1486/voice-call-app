@@ -1,9 +1,4 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const path = require('path');
-
-const app = express();
+// Connection and state management
 const socket = io();
 const STATE = {
     DISCONNECTED: 'disconnected',
@@ -16,9 +11,10 @@ class VoiceConnect {
         this.state = STATE.DISCONNECTED;
         this.localStream = null;
         this.peerConnection = null;
+        this.remoteStream = null;
         this.currentRoom = null;
         this.isCallConnected = false;
-        this.notifications = new Map();
+        this.remoteAudioElement = null;
         this.reconnectionAttempts = 0;
         this.MAX_RECONNECTION_ATTEMPTS = 3;
         
@@ -43,7 +39,6 @@ class VoiceConnect {
         this.setupSocketHandlers();
     }
 
-    // Initialize all event listeners
     initializeEventListeners() {
         this.elements.createRoomBtn.addEventListener('click', () => this.handleCreateRoom());
         this.elements.joinRoomBtn.addEventListener('click', () => this.handleJoinRoom());
@@ -65,21 +60,26 @@ class VoiceConnect {
         });
     }
 
-    // Setup WebRTC peer connection
     async setupPeerConnection() {
         const configuration = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' }
+                { urls: 'stun:stun1.l.google.com:19302' },
+                // Consider adding TURN servers for better connectivity
             ],
             iceCandidatePoolSize: 10
         };
 
         this.peerConnection = new RTCPeerConnection(configuration);
-        
+        this.remoteStream = new MediaStream();
+
         try {
             this.localStream = await navigator.mediaDevices.getUserMedia({ 
-                audio: true,
+                audio: { 
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true 
+                },
                 video: false
             });
 
@@ -87,19 +87,32 @@ class VoiceConnect {
                 this.peerConnection.addTrack(track, this.localStream);
             });
 
+            this.peerConnection.ontrack = (event) => {
+                event.streams[0].getTracks().forEach(track => {
+                    this.remoteStream.addTrack(track);
+                });
+
+                if (!this.remoteAudioElement) {
+                    this.remoteAudioElement = document.createElement('audio');
+                    this.remoteAudioElement.srcObject = this.remoteStream;
+                    this.remoteAudioElement.autoplay = true;
+                    this.remoteAudioElement.playsinline = true;
+                    document.body.appendChild(this.remoteAudioElement);
+                }
+            };
+
             this.setupPeerConnectionHandlers();
         } catch (error) {
             this.showNotification('Microphone access denied. Please check permissions.', 'error');
-            throw new Error('Media access denied');
+            throw error;
         }
     }
 
-    // Setup WebRTC event handlers
     setupPeerConnectionHandlers() {
         this.peerConnection.onicecandidate = ({ candidate }) => {
             if (candidate && this.currentRoom) {
                 socket.emit('new-ice-candidate', {
-                    candidate,
+                    candidate: candidate.toJSON(),
                     room: this.currentRoom
                 });
             }
@@ -115,18 +128,11 @@ class VoiceConnect {
             } else if (state === 'disconnected' || state === 'failed') {
                 this.isCallConnected = false;
                 this.showNotification('Call disconnected', 'warning');
+                this.handleDisconnect();
             }
-        };
-
-        this.peerConnection.ontrack = (event) => {
-            const audio = document.createElement('audio');
-            audio.srcObject = event.streams[0];
-            audio.autoplay = true;
-            document.body.appendChild(audio);
         };
     }
 
-    // Socket event handlers
     setupSocketHandlers() {
         socket.on('connect', () => {
             this.state = STATE.CONNECTED;
@@ -139,10 +145,37 @@ class VoiceConnect {
             this.handleDisconnect();
         });
 
-        socket.on('offer', async ({ offer }) => await this.handleOffer(offer));
-        socket.on('answer', async ({ answer }) => await this.handleAnswer(answer));
+        socket.on('offer', async ({ offer }) => {
+            try {
+                await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await this.peerConnection.createAnswer();
+                await this.peerConnection.setLocalDescription(answer);
+                
+                socket.emit('answer', { 
+                    answer, 
+                    room: this.currentRoom 
+                });
+            } catch (error) {
+                console.error("Error handling offer:", error);
+                this.showNotification('Error processing call offer', 'error');
+            }
+        });
+
+        socket.on('answer', async ({ answer }) => {
+            try {
+                await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+            } catch (error) {
+                console.error("Error handling answer:", error);
+                this.showNotification('Error processing call answer', 'error');
+            }
+        });
+
         socket.on('new-ice-candidate', async ({ candidate }) => {
-            await this.handleNewIceCandidate(candidate);
+            try {
+                await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (error) {
+                console.error("Error adding ICE candidate:", error);
+            }
         });
 
         socket.on('user-joined', () => {
@@ -150,7 +183,6 @@ class VoiceConnect {
         });
     }
 
-    // Create and send WebRTC offer
     async createAndSendOffer() {
         try {
             const offer = await this.peerConnection.createOffer();
@@ -166,54 +198,16 @@ class VoiceConnect {
         }
     }
 
-    // Handle incoming WebRTC offer
-    async handleOffer(offer) {
-        try {
-            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-            const answer = await this.peerConnection.createAnswer();
-            await this.peerConnection.setLocalDescription(answer);
-
-            socket.emit('answer', {
-                answer,
-                room: this.currentRoom
-            });
-        } catch (error) {
-            console.error('Error handling offer:', error);
-            this.showNotification('Failed to handle call offer', 'error');
-        }
-    }
-
-    // Handle incoming WebRTC answer
-    async handleAnswer(answer) {
-        try {
-            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-        } catch (error) {
-            console.error('Error handling answer:', error);
-            this.showNotification('Failed to handle call answer', 'error');
-        }
-    }
-
-    // Handle new ICE candidate
-    async handleNewIceCandidate(candidate) {
-        try {
-            if (candidate) {
-                await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-            }
-        } catch (error) {
-            console.error('Error adding ICE candidate:', error);
-        }
-    }
-
-    // Room management methods
     async handleCreateRoom() {
         const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-        this.elements.generatedRoomCode.style.display = 'flex';
-        this.elements.roomCodeText.textContent = roomCode;
         this.currentRoom = roomCode;
         
         try {
             await this.setupPeerConnection();
             socket.emit('create-room', roomCode);
+            
+            this.elements.generatedRoomCode.style.display = 'flex';
+            this.elements.roomCodeText.textContent = roomCode;
             this.showCallPage();
         } catch (error) {
             this.showNotification('Failed to create room: ' + error.message, 'error');
@@ -226,9 +220,11 @@ class VoiceConnect {
             this.showNotification('Please enter a room code', 'warning');
             return;
         }
+
+        this.currentRoom = roomCode;
+
         try {
             await this.setupPeerConnection();
-            this.currentRoom = roomCode;
             socket.emit('join-room', roomCode);
             this.showCallPage();
         } catch (error) {
@@ -236,7 +232,93 @@ class VoiceConnect {
         }
     }
 
-    // UI management methods
+    handleMuteToggle() {
+        if (!this.localStream) return;
+        
+        const audioTracks = this.localStream.getAudioTracks();
+        if (audioTracks.length > 0) {
+            const isCurrentlyMuted = !audioTracks[0].enabled;
+            audioTracks.forEach(track => track.enabled = isCurrentlyMuted);
+            
+            this.elements.muteBtn.querySelector('i').classList.toggle('fa-microphone-slash');
+            this.elements.muteBtn.querySelector('i').classList.toggle('fa-microphone');
+            
+            if (this.isCallConnected) {
+                socket.emit('user-mute', {
+                    room: this.currentRoom,
+                    isMuted: !isCurrentlyMuted
+                });
+            }
+        }
+    }
+
+    handleSpeakerToggle() {
+        if (!this.remoteAudioElement) return;
+        
+        this.remoteAudioElement.muted = !this.remoteAudioElement.muted;
+        this.elements.speakerBtn.querySelector('i').classList.toggle('fa-volume-mute');
+        this.elements.speakerBtn.querySelector('i').classList.toggle('fa-volume-up');
+        
+        if (this.isCallConnected) {
+            socket.emit('user-speaker', {
+                room: this.currentRoom,
+                isSpeakerOff: this.remoteAudioElement.muted
+            });
+        }
+    }
+
+    handleHangup() {
+        if (this.currentRoom) {
+            socket.emit('leave-call', this.currentRoom);
+        }
+        
+        this.cleanup();
+        this.showLandingPage();
+    }
+
+    async handleCopyRoomCode() {
+        try {
+            await navigator.clipboard.writeText(this.elements.roomCodeText.textContent);
+            this.elements.callCopyRoomCodeBtn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => {
+                this.elements.callCopyRoomCodeBtn.innerHTML = '<i class="fas fa-copy"></i>';
+            }, 2000);
+        } catch (error) {
+            this.showNotification('Failed to copy room code', 'error');
+        }
+    }
+
+    cleanup() {
+        if (this.peerConnection) {
+            this.peerConnection.close();
+            this.peerConnection = null;
+        }
+        
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => track.stop());
+            this.localStream = null;
+        }
+        
+        if (this.remoteStream) {
+            this.remoteStream.getTracks().forEach(track => track.stop());
+            this.remoteStream = null;
+        }
+        
+        if (this.remoteAudioElement) {
+            this.remoteAudioElement.srcObject = null;
+            this.remoteAudioElement.remove();
+            this.remoteAudioElement = null;
+        }
+        
+        this.currentRoom = null;
+        this.isCallConnected = false;
+    }
+
+    showLandingPage() {
+        this.elements.landingPage.style.display = 'block';
+        this.elements.callPage.style.display = 'none';
+    }
+
     showCallPage() {
         this.elements.landingPage.style.display = 'none';
         this.elements.callPage.style.display = 'block';
@@ -258,94 +340,17 @@ class VoiceConnect {
         return notificationId;
     }
 
-    // Call control methods
-    handleMuteToggle() {
-        if (!this.localStream) return;
-        
-        const audioTrack = this.localStream.getAudioTracks()[0];
-        audioTrack.enabled = !audioTrack.enabled;
-        
-        this.elements.muteBtn.querySelector('i').classList.toggle('fa-microphone-slash');
-        this.elements.muteBtn.querySelector('i').classList.toggle('fa-microphone');
-        
-        if (this.isCallConnected) {
-            socket.emit('user-mute', {
-                room: this.currentRoom,
-                isMuted: !audioTrack.enabled
-            });
-        }
-    }
-
-    handleSpeakerToggle() {
-        const audio = document.querySelector('audio');
-        if (!audio) return;
-        
-        audio.muted = !audio.muted;
-        this.elements.speakerBtn.querySelector('i').classList.toggle('fa-volume-mute');
-        this.elements.speakerBtn.querySelector('i').classList.toggle('fa-volume-up');
-        
-        if (this.isCallConnected) {
-            socket.emit('user-speaker', {
-                room: this.currentRoom,
-                isSpeakerOff: audio.muted
-            });
-        }
-    }
-
-    async handleHangup() {
-        if (this.currentRoom) {
-            socket.emit('leave-call', this.currentRoom);
-        }
-        
-        this.cleanup();
-        this.elements.landingPage.style.display = 'block';
-        this.elements.callPage.style.display = 'none';
-    }
-
-    // New method for copying room code
-    async handleCopyRoomCode() {
-        try {
-            await navigator.clipboard.writeText(this.elements.roomCodeText.textContent);
-            this.elements.callCopyRoomCodeBtn.innerHTML = '<i class="fas fa-check"></i>';
-            setTimeout(() => {
-                this.elements.callCopyRoomCodeBtn.innerHTML = '<i class="fas fa-copy"></i>';
-            }, 2000);
-        } catch (error) {
-            this.showNotification('Failed to copy room code', 'error');
-        }
-    }
-
-    // Cleanup and error handling
-    cleanup() {
-        if (this.peerConnection) {
-            this.peerConnection.close();
-            this.peerConnection = null;
-        }
-        
-        if (this.localStream) {
-            this.localStream.getTracks().forEach(track => track.stop());
-            this.localStream = null;
-        }
-        
-        document.querySelectorAll('audio').forEach(audio => audio.remove());
-        this.currentRoom = null;
-        this.isCallConnected = false;
-        this.notifications.clear();
-    }
-
     handleVisibilityChange() {
         if (document.hidden && this.isCallConnected) {
             this.showNotification('Call running in background', 'info');
         }
     }
 
-    // Placeholder for disconnect handling
     handleDisconnect() {
-        // Implement reconnection logic if needed
         this.reconnectionAttempts++;
         if (this.reconnectionAttempts < this.MAX_RECONNECTION_ATTEMPTS) {
-            // Attempt to reconnect
             console.log(`Reconnection attempt ${this.reconnectionAttempts}`);
+            // Additional reconnection logic can be added here
         } else {
             this.showNotification('Unable to reconnect. Please check your connection.', 'error');
         }
