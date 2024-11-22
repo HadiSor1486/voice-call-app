@@ -7,6 +7,14 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// Serve static files from the current directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Serve index.html for all routes (Single Page Application handling)
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Enhanced room management with metadata
 class RoomManager {
     constructor() {
