@@ -5,229 +5,102 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: process.env.ALLOWED_ORIGINS || "*",
-        methods: ["GET", "POST"]
-    },
-    pingTimeout: 60000 // Increased timeout for stable connections
-});
+const io = new Server(server);
 
-// Enhanced logging utility
-const log = (message, level = 'info') => {
+// Serve static files from 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Rooms data structure with enhanced management
+const rooms = new Map();
+
+// Logging middleware
+const log = (message) => {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] [${level.toUpperCase()}] ${message}`);
+    console.log(`[${timestamp}] ${message}`);
 };
 
-// Advanced Room Management
-class RoomManager {
-    constructor() {
-        this.rooms = new Map();
-        this.ROOM_TIMEOUT = 15 * 60 * 1000; // 15 minutes
-        this.MAX_USERS_PER_ROOM = 2;
-    }
-
-    createRoom(roomId, creatorId) {
-        if (this.rooms.has(roomId)) {
-            throw new Error('Room already exists');
-        }
-
-        const room = {
-            id: roomId,
-            users: new Map(), // Use Map to store user details
-            createdAt: Date.now(),
-            lastActivity: Date.now()
-        };
-
-        // Store user with additional metadata
-        room.users.set(creatorId, {
-            id: creatorId,
-            joinedAt: Date.now(),
-            mediaStatus: {
-                audio: true,
-                video: true
-            }
-        });
-
-        this.rooms.set(roomId, room);
-        return room;
-    }
-
-    joinRoom(roomId, userId) {
-        const room = this.rooms.get(roomId);
-        
-        if (!room) {
-            throw new Error('Room does not exist');
-        }
-
-        if (room.users.size >= this.MAX_USERS_PER_ROOM) {
-            throw new Error('Room is full');
-        }
-
-        // Add user with detailed metadata
-        room.users.set(userId, {
-            id: userId,
-            joinedAt: Date.now(),
-            mediaStatus: {
-                audio: true,
-                video: true
-            }
-        });
-
-        room.lastActivity = Date.now();
-        return room;
-    }
-
-    leaveRoom(userId) {
-        for (const room of this.rooms.values()) {
-            if (room.users.has(userId)) {
-                room.users.delete(userId);
-                
-                if (room.users.size === 0) {
-                    this.rooms.delete(room.id);
-                }
-                
-                return room;
-            }
-        }
-        return null;
-    }
-
-    updateUserMediaStatus(userId, mediaType, status) {
-        for (const room of this.rooms.values()) {
-            const user = room.users.get(userId);
-            if (user) {
-                user.mediaStatus[mediaType] = status;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    getRoomByUser(userId) {
-        for (const room of this.rooms.values()) {
-            if (room.users.has(userId)) {
-                return room;
-            }
-        }
-        return null;
-    }
-}
-
-const roomManager = new RoomManager();
-
-// Middleware for serving static files
-app.use(express.static(path.join(__dirname, 'public')));
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// WebRTC Signaling Socket Handlers
 io.on('connection', (socket) => {
     log(`New user connected: ${socket.id}`);
 
-    // Room Creation and Management
-    socket.on('create-room', (roomId) => {
-        try {
-            const existingRoom = roomManager.getRoomByUser(socket.id);
-            if (existingRoom) {
-                socket.emit('error', 'You are already in a room');
-                return;
-            }
+    socket.on('create-room', (room) => {
+        if (!rooms.has(room)) {
+            rooms.set(room, new Set());
+        }
+        const roomMembers = rooms.get(room);
+        roomMembers.add(socket.id);
+        socket.join(room);
+        log(`Room ${room} created by ${socket.id}`);
+        socket.emit('room-created', room);
+    });
 
-            const newRoom = roomManager.createRoom(roomId, socket.id);
-            socket.join(roomId);
-            socket.emit('room-created', roomId);
-            log(`Room ${roomId} created by ${socket.id}`);
-        } catch (error) {
-            log(`Room creation error: ${error.message}`, 'error');
-            socket.emit('error', error.message);
+    socket.on('join-room', (room) => {
+        if (rooms.has(room)) {
+            const roomMembers = rooms.get(room);
+            roomMembers.add(socket.id);
+            socket.join(room);
+            // Notify ALL users in the room that someone joined
+            io.to(room).emit('user-joined', { id: socket.id });
+            log(`User ${socket.id} joined room ${room}`);
+        } else {
+            socket.emit('error', 'Room does not exist.');
         }
     });
 
-    // Room Joining
-    socket.on('join-room', (roomId) => {
-        try {
-            const existingRoom = roomManager.getRoomByUser(socket.id);
-            if (existingRoom) {
-                socket.emit('error', 'You are already in a room');
-                return;
-            }
-
-            const room = roomManager.joinRoom(roomId, socket.id);
-            socket.join(roomId);
-            
-            // Notify all room participants about new user
-            io.in(roomId).emit('user-joined', { 
-                id: socket.id, 
-                users: Array.from(room.users.keys())
-            });
-
-            log(`User ${socket.id} joined room ${roomId}`);
-        } catch (error) {
-            log(`Room join error: ${error.message}`, 'error');
-            socket.emit('error', error.message);
-        }
+    // WebRTC signaling events
+    socket.on('offer', ({ offer, room }) => {
+        log(`Offer received in room ${room}`);
+        socket.to(room).emit('offer', { offer, id: socket.id });
     });
 
-    // WebRTC Signaling Events
-    socket.on('offer', ({ offer, room, to }) => {
-        socket.to(to).emit('offer', { 
-            offer, 
-            from: socket.id, 
-            room 
-        });
+    socket.on('answer', ({ answer, room }) => {
+        log(`Answer received in room ${room}`);
+        socket.to(room).emit('answer', { answer, id: socket.id });
     });
 
-    socket.on('answer', ({ answer, room, to }) => {
-        socket.to(to).emit('answer', { 
-            answer, 
-            from: socket.id, 
-            room 
-        });
+    socket.on('new-ice-candidate', ({ candidate, room }) => {
+        log(`ICE Candidate received in room ${room}`);
+        socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
-    socket.on('new-ice-candidate', ({ candidate, room, to }) => {
-        socket.to(to).emit('new-ice-candidate', { 
-            candidate, 
-            from: socket.id, 
-            room 
-        });
+    // New handlers for user mute and speaker events
+    socket.on('user-mute', ({ room, isMuted }) => {
+        log(`User ${socket.id} mute status: ${isMuted}`);
+        socket.to(room).emit('other-user-mute', { isMuted });
     });
 
-    // Media Control Events
-    socket.on('toggle-media', ({ type, status, room }) => {
-        const updated = roomManager.updateUserMediaStatus(socket.id, type, status);
-        if (updated) {
-            socket.to(room).emit('media-status-changed', {
-                userId: socket.id,
-                type,
-                status
-            });
-        }
+    socket.on('user-speaker', ({ room, isSpeakerOff }) => {
+        log(`User ${socket.id} speaker status: ${isSpeakerOff}`);
+        socket.to(room).emit('other-user-speaker', { isSpeakerOff });
     });
 
-    // Leave Call/Room Handling
+    // Handle user leaving the call
     socket.on('leave-call', (room) => {
-        socket.to(room).emit('user-left', { id: socket.id });
-        roomManager.leaveRoom(socket.id);
-        socket.leave(room);
+        // Broadcast to all other users in the room that someone left
+        socket.to(room).emit('call-ended');
+        log(`User ${socket.id} left room ${room}`);
     });
 
-    // Disconnect Handling
+    // Disconnect handling
     socket.on('disconnect', () => {
-        const room = roomManager.getRoomByUser(socket.id);
-        if (room) {
-            socket.to(room.id).emit('user-left', { id: socket.id });
-            roomManager.leaveRoom(socket.id);
-        }
         log(`User ${socket.id} disconnected`);
+        for (const [room, members] of rooms.entries()) {
+            if (members.has(socket.id)) {
+                members.delete(socket.id);
+                socket.to(room).emit('user-left', { id: socket.id });
+                
+                if (members.size === 0) {
+                    rooms.delete(room);
+                }
+                break;
+            }
+        }
     });
 });
 
-// Global error handling
-process.on('unhandledRejection', (reason, promise) => {
-    log(`Unhandled Rejection: ${reason}`, 'error');
+// Error handling middleware
+app.use((err, req, res, next) => {
+    log(`Error: ${err.message}`);
+    res.status(500).send('Something went wrong!');
 });
 
 const PORT = process.env.PORT || 3000;
