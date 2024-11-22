@@ -272,3 +272,45 @@ body {
     font-size: 20px;
   }
 }
+
+.call-room-code {
+    position: absolute;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(8px);
+    padding: 12px 16px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 10;
+  }
+  
+  .call-room-code .room-code-info {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .call-room-code .room-code-info span {
+    font-size: 0.8rem;
+    color: white;
+    opacity: 0.7;
+  }
+  
+  .call-room-code .room-code-info code {
+    font-size: 1.2rem;
+    color: white;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+  
+  .call-room-code .btn-copy {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+  }
+  
+  .call-room-code .btn-copy:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }

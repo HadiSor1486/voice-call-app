@@ -29,7 +29,11 @@ class VoiceConnect {
             copyRoomCodeBtn: document.getElementById('copy-room-code'),
             muteBtn: document.getElementById('mute-btn'),
             hangupBtn: document.getElementById('hangup-btn'),
-            speakerBtn: document.getElementById('speaker-btn')
+            speakerBtn: document.getElementById('speaker-btn'),
+            
+            // New elements added
+            callRoomCodeText: document.getElementById('call-room-code-text'),
+            callCopyRoomCodeBtn: document.getElementById('call-copy-room-code')
         };
 
         this.initializeEventListeners();
@@ -44,6 +48,9 @@ class VoiceConnect {
         this.elements.muteBtn.addEventListener('click', () => this.handleMuteToggle());
         this.elements.speakerBtn.addEventListener('click', () => this.handleSpeakerToggle());
         this.elements.hangupBtn.addEventListener('click', () => this.handleHangup());
+        
+        // New event listener for call room code copy
+        this.elements.callCopyRoomCodeBtn.addEventListener('click', () => this.handleCopyRoomCode());
 
         // Handle page visibility changes
         document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
@@ -143,13 +150,15 @@ class VoiceConnect {
     // Room management methods
     async handleCreateRoom() {
         const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-        this.elements.generatedRoomCode.style.display = 'flex';
-        this.elements.roomCodeText.textContent = roomCode;
         this.currentRoom = roomCode;
         
         try {
             await this.setupPeerConnection();
             socket.emit('create-room', roomCode);
+            
+            // Update room code in call page
+            this.elements.callRoomCodeText.textContent = roomCode;
+            
             this.showCallPage();
         } catch (error) {
             this.showNotification('Failed to create room: ' + error.message, 'error');
@@ -162,11 +171,14 @@ class VoiceConnect {
             this.showNotification('Please enter a room code', 'warning');
             return;
         }
-
         try {
             await this.setupPeerConnection();
             this.currentRoom = roomCode;
             socket.emit('join-room', roomCode);
+            
+            // Update room code in call page
+            this.elements.callRoomCodeText.textContent = roomCode;
+            
             this.showCallPage();
         } catch (error) {
             this.showNotification('Failed to join room: ' + error.message, 'error');
@@ -237,6 +249,19 @@ class VoiceConnect {
         this.cleanup();
         this.elements.landingPage.style.display = 'block';
         this.elements.callPage.style.display = 'none';
+    }
+
+    // New method for copying room code
+    async handleCopyRoomCode() {
+        try {
+            await navigator.clipboard.writeText(this.elements.callRoomCodeText.textContent);
+            this.elements.callCopyRoomCodeBtn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => {
+                this.elements.callCopyRoomCodeBtn.innerHTML = '<i class="fas fa-copy"></i>';
+            }, 2000);
+        } catch (error) {
+            this.showNotification('Failed to copy room code', 'error');
+        }
     }
 
     // Cleanup and error handling
