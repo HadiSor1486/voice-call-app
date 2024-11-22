@@ -7,103 +7,95 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Serve static files from 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Rooms data structure with enhanced management
-const rooms = new Map();
-
-// Logging middleware
-const log = (message) => {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${message}`);
-};
+// Room management with enhanced participant tracking
+const rooms = new Map(); // {roomCode: {participants: Map<userId, {profilePicture, isMuted}>}}
 
 io.on('connection', (socket) => {
-    log(`New user connected: ${socket.id}`);
+    socket.on('create-room', ({ roomCode, profilePicture }) => {
+        rooms.set(roomCode, {
+            participants: new Map([[socket.id, { profilePicture, isMuted: false }]])
+        });
+        socket.join(roomCode);
+    });
 
-    socket.on('create-room', (room) => {
-        if (!rooms.has(room)) {
-            rooms.set(room, new Set());
+    socket.on('join-room', ({ roomCode, profilePicture }) => {
+        const room = rooms.get(roomCode);
+        if (!room) {
+            socket.emit('error', 'Room does not exist');
+            return;
         }
-        const roomMembers = rooms.get(room);
-        roomMembers.add(socket.id);
-        socket.join(room);
-        log(`Room ${room} created by ${socket.id}`);
-        socket.emit('room-created', room);
-    });
 
-    socket.on('join-room', (room) => {
-        if (rooms.has(room)) {
-            const roomMembers = rooms.get(room);
-            roomMembers.add(socket.id);
-            socket.join(room);
-            // Notify ALL users in the room that someone joined
-            io.to(room).emit('user-joined', { id: socket.id });
-            log(`User ${socket.id} joined room ${room}`);
-        } else {
-            socket.emit('error', 'Room does not exist.');
-        }
-    });
+        room.participants.set(socket.id, { profilePicture, isMuted: false });
+        socket.join(roomCode);
 
-    // WebRTC signaling events
-    socket.on('offer', ({ offer, room }) => {
-        log(`Offer received in room ${room}`);
-        socket.to(room).emit('offer', { offer, id: socket.id });
-    });
+        // Notify existing participants about the new user
+        socket.to(roomCode).emit('user-joined', {
+            userId: socket.id,
+            profilePicture
+        });
 
-    socket.on('answer', ({ answer, room }) => {
-        log(`Answer received in room ${room}`);
-        socket.to(room).emit('answer', { answer, id: socket.id });
-    });
-
-    socket.on('new-ice-candidate', ({ candidate, room }) => {
-        log(`ICE Candidate received in room ${room}`);
-        socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
-    });
-
-    // New handlers for user mute and speaker events
-    socket.on('user-mute', ({ room, isMuted }) => {
-        log(`User ${socket.id} mute status: ${isMuted}`);
-        socket.to(room).emit('other-user-mute', { isMuted });
-    });
-
-    socket.on('user-speaker', ({ room, isSpeakerOff }) => {
-        log(`User ${socket.id} speaker status: ${isSpeakerOff}`);
-        socket.to(room).emit('other-user-speaker', { isSpeakerOff });
-    });
-
-    // Handle user leaving the call
-    socket.on('leave-call', (room) => {
-        // Broadcast to all other users in the room that someone left
-        socket.to(room).emit('call-ended');
-        log(`User ${socket.id} left room ${room}`);
-    });
-
-    // Disconnect handling
-    socket.on('disconnect', () => {
-        log(`User ${socket.id} disconnected`);
-        for (const [room, members] of rooms.entries()) {
-            if (members.has(socket.id)) {
-                members.delete(socket.id);
-                socket.to(room).emit('user-left', { id: socket.id });
-                
-                if (members.size === 0) {
-                    rooms.delete(room);
-                }
-                break;
+        // Send existing participants to the new user
+        room.participants.forEach((participant, userId) => {
+            if (userId !== socket.id) {
+                socket.emit('user-joined', {
+                    userId,
+                    profilePicture: participant.profilePicture
+                });
             }
+        });
+    });
+
+    // WebRTC signaling
+    socket.on('offer', ({ offer, userId, room }) => {
+        socket.to(userId).emit('offer', {
+            offer,
+            userId: socket.id,
+            profilePicture: rooms.get(room)?.participants.get(socket.id)?.profilePicture
+        });
+    });
+
+    socket.on('answer', ({ answer, userId, room }) => {
+        socket.to(userId).emit('answer', {
+            answer,
+            userId: socket.id
+        });
+    });
+
+    socket.on('ice-candidate', ({ candidate, userId, room }) => {
+        socket.to(userId).emit('ice-candidate', {
+            candidate,
+            userId: socket.id
+        });
+    });
+
+    socket.on('user-mute', ({ room, isMuted }) => {
+        const roomData = rooms.get(room);
+        if (roomData && roomData.participants.has(socket.id)) {
+            roomData.participants.get(socket.id).isMuted = isMuted;
+            socket.to(room).emit('user-mute', {
+                userId: socket.id,
+                isMuted
+            });
         }
     });
-});
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-    log(`Error: ${err.message}`);
-    res.status(500).send('Something went wrong!');
+    socket.on('disconnect', () => {
+        rooms.forEach((room, roomCode) => {
+            if (room.participants.has(socket.id)) {
+                room.participants.delete(socket.id);
+                io.to(roomCode).emit('user-left', { userId: socket.id });
+                
+                if (room.participants.size === 0) {
+                    rooms.delete(roomCode);
+                }
+            }
+        });
+    });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    log(`Server running on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });
