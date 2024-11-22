@@ -209,140 +209,88 @@ body {
     100% { transform: translateX(-50%) scale(1); }
 }
 
-/* Profile Setup Styles */
-.profile-setup {
-    margin-bottom: 30px;
-    text-align: center;
+@media (max-width: 480px) {
+    .app-container {
+        max-width: 95%;
+    }
+    .page {
+        padding: 25px;
+    }
 }
 
-.profile-image-container {
-    position: relative;
-    width: 120px;
-    height: 120px;
-    margin: 0 auto;
-    border-radius: 50%;
-    overflow: hidden;
-    cursor: pointer;
-    border: 3px solid var(--primary-color);
-    transition: transform 0.3s ease;
+
+.username-container {
+    margin-bottom: 20px;
 }
 
-.profile-image-container:hover {
-    transform: scale(1.05);
-}
-
-.profile-image-container img {
+#username-input {
     width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.profile-upload-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.profile-image-container:hover .profile-upload-overlay {
-    opacity: 1;
-}
-
-.profile-upload-overlay i {
-    color: white;
-    font-size: 24px;
-}
-
-.profile-name {
-    margin-top: 10px;
-    color: var(--text-color);
-    font-size: 0.9rem;
-}
-
-/* Call Page Styles */
-.call-container {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 40px 20px;
-    background: linear-gradient(135deg, #1a1f25 0%, #2b3137 100%);
-}
-
-.participants-grid {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 20px;
-    padding: 20px;
-}
-
-.participant {
-    position: relative;
-    width: 150px;
-    height: 150px;
-    border-radius: 50%;
-    border: 3px solid rgba(255, 255, 255, 0.2);
-    overflow: hidden;
+    padding: 12px;
+    border: 2px solid var(--primary-color);
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
     transition: all 0.3s ease;
 }
 
-.participant img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+#username-input:focus {
+    outline: none;
+    border-color: var(--secondary-color);
 }
 
-.participant .mute-indicator {
+#participants-list {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 30px;
-    height: 30px;
-    background: rgba(255, 0, 0, 0.8);
-    border-radius: 50%;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+}
+
+.participants-container {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 12px;
+    padding: 15px;
+    min-width: 200px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(5px);
+}
+
+.participants-header {
+    color: var(--primary-color);
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    padding-bottom: 8px;
+}
+
+.participant-item {
     display: flex;
+    justify-content: space-between;
     align-items: center;
-    justify-content: center;
-    color: white;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.participant-item:hover {
+    background: rgba(255, 255, 255, 1);
+    transform: translateX(-2px);
+}
+
+.participant-name {
+    color: var(--text-color);
+    font-weight: 500;
+}
+
+.participant-item i {
     font-size: 14px;
 }
 
-.call-controls {
-    display: flex;
-    justify-content: center;
-    gap: 30px;
-    padding: 20px;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    margin: 0 auto;
-    width: fit-content;
+.participant-item i.muted {
+    color: #dc3545;
 }
 
-.control-btn {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    border: 2px solid white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    background: transparent;
-    transition: transform 0.3s;
-}
-
-.control-btn:hover {
-    transform: scale(1.1);
-    background: white;
-    color: black;
+.participant-item i.unmuted {
+    color: #28a745;
 }

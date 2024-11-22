@@ -16,6 +16,9 @@
                 <p>Simple. Secure. Connected.</p>
             </div>
             <div class="room-actions">
+                <div class="username-container">
+                    <input type="text" id="username-input" placeholder="Enter your username" maxlength="20">
+                </div>
                 <button id="create-room" class="btn btn-primary">
                     <i class="fas fa-plus-circle"></i> Create Room
                 </button>
@@ -38,6 +41,7 @@
         <div id="call-page" class="page">
             <div id="call-background">
                 <div class="call-overlay">
+                    <div id="participants-list"></div>
                     <div id="buttons" class="call-controls">
                         <button id="mute-btn" class="control-btn">
                             <i class="fas fa-microphone"></i>
