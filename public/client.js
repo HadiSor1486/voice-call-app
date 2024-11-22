@@ -1,4 +1,9 @@
-// Connection and state management
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+
+const app = express();
 const socket = io();
 const STATE = {
     DISCONNECTED: 'disconnected',
@@ -26,14 +31,12 @@ class VoiceConnect {
             roomCodeInput: document.getElementById('room-code-input'),
             generatedRoomCode: document.getElementById('generated-room-code'),
             roomCodeText: document.getElementById('room-code-text'),
+            callRoomCodeText: document.getElementById('call-room-code-text'),
+            callCopyRoomCodeBtn: document.getElementById('call-copy-room-code'),
             copyRoomCodeBtn: document.getElementById('copy-room-code'),
             muteBtn: document.getElementById('mute-btn'),
             hangupBtn: document.getElementById('hangup-btn'),
-            speakerBtn: document.getElementById('speaker-btn'),
-            
-            // New elements added
-            callRoomCodeText: document.getElementById('call-room-code-text'),
-            callCopyRoomCodeBtn: document.getElementById('call-copy-room-code')
+            speakerBtn: document.getElementById('speaker-btn')
         };
 
         this.initializeEventListeners();
@@ -45,13 +48,11 @@ class VoiceConnect {
         this.elements.createRoomBtn.addEventListener('click', () => this.handleCreateRoom());
         this.elements.joinRoomBtn.addEventListener('click', () => this.handleJoinRoom());
         this.elements.copyRoomCodeBtn.addEventListener('click', () => this.handleCopyRoomCode());
+        this.elements.callCopyRoomCodeBtn.addEventListener('click', () => this.handleCopyRoomCode());
         this.elements.muteBtn.addEventListener('click', () => this.handleMuteToggle());
         this.elements.speakerBtn.addEventListener('click', () => this.handleSpeakerToggle());
         this.elements.hangupBtn.addEventListener('click', () => this.handleHangup());
         
-        // New event listener for call room code copy
-        this.elements.callCopyRoomCodeBtn.addEventListener('click', () => this.handleCopyRoomCode());
-
         // Handle page visibility changes
         document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
 
@@ -105,7 +106,16 @@ class VoiceConnect {
         };
 
         this.peerConnection.onconnectionstatechange = () => {
-            this.handleConnectionStateChange();
+            const state = this.peerConnection.connectionState;
+            console.log(`Connection state: ${state}`);
+            
+            if (state === 'connected') {
+                this.isCallConnected = true;
+                this.showNotification('Call connected', 'success');
+            } else if (state === 'disconnected' || state === 'failed') {
+                this.isCallConnected = false;
+                this.showNotification('Call disconnected', 'warning');
+            }
         };
 
         this.peerConnection.ontrack = (event) => {
@@ -129,36 +139,81 @@ class VoiceConnect {
             this.handleDisconnect();
         });
 
-        socket.on('error', (error) => {
-            this.showNotification(error, 'error');
-        });
-
-        socket.on('room-timeout', () => {
-            this.showNotification('Room timed out due to inactivity', 'warning');
-            this.handleHangup();
-        });
-
-        socket.on('user-joined', () => this.handleUserJoined());
-        socket.on('user-left', () => this.handleUserLeft());
         socket.on('offer', async ({ offer }) => await this.handleOffer(offer));
         socket.on('answer', async ({ answer }) => await this.handleAnswer(answer));
         socket.on('new-ice-candidate', async ({ candidate }) => {
             await this.handleNewIceCandidate(candidate);
         });
+
+        socket.on('user-joined', () => {
+            this.createAndSendOffer();
+        });
+    }
+
+    // Create and send WebRTC offer
+    async createAndSendOffer() {
+        try {
+            const offer = await this.peerConnection.createOffer();
+            await this.peerConnection.setLocalDescription(offer);
+            
+            socket.emit('offer', {
+                offer,
+                room: this.currentRoom
+            });
+        } catch (error) {
+            console.error('Error creating offer:', error);
+            this.showNotification('Failed to create call offer', 'error');
+        }
+    }
+
+    // Handle incoming WebRTC offer
+    async handleOffer(offer) {
+        try {
+            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            const answer = await this.peerConnection.createAnswer();
+            await this.peerConnection.setLocalDescription(answer);
+
+            socket.emit('answer', {
+                answer,
+                room: this.currentRoom
+            });
+        } catch (error) {
+            console.error('Error handling offer:', error);
+            this.showNotification('Failed to handle call offer', 'error');
+        }
+    }
+
+    // Handle incoming WebRTC answer
+    async handleAnswer(answer) {
+        try {
+            await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        } catch (error) {
+            console.error('Error handling answer:', error);
+            this.showNotification('Failed to handle call answer', 'error');
+        }
+    }
+
+    // Handle new ICE candidate
+    async handleNewIceCandidate(candidate) {
+        try {
+            if (candidate) {
+                await this.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+        } catch (error) {
+            console.error('Error adding ICE candidate:', error);
+        }
     }
 
     // Room management methods
     async handleCreateRoom() {
         const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        this.elements.generatedRoomCode.style.display = 'flex';
+        this.elements.roomCodeText.textContent = roomCode;
         this.currentRoom = roomCode;
         
         try {
             await this.setupPeerConnection();
             socket.emit('create-room', roomCode);
-            
-            // Update room code in call page
-            this.elements.callRoomCodeText.textContent = roomCode;
-            
             this.showCallPage();
         } catch (error) {
             this.showNotification('Failed to create room: ' + error.message, 'error');
@@ -175,10 +230,6 @@ class VoiceConnect {
             await this.setupPeerConnection();
             this.currentRoom = roomCode;
             socket.emit('join-room', roomCode);
-            
-            // Update room code in call page
-            this.elements.callRoomCodeText.textContent = roomCode;
-            
             this.showCallPage();
         } catch (error) {
             this.showNotification('Failed to join room: ' + error.message, 'error');
@@ -254,7 +305,7 @@ class VoiceConnect {
     // New method for copying room code
     async handleCopyRoomCode() {
         try {
-            await navigator.clipboard.writeText(this.elements.callRoomCodeText.textContent);
+            await navigator.clipboard.writeText(this.elements.roomCodeText.textContent);
             this.elements.callCopyRoomCodeBtn.innerHTML = '<i class="fas fa-check"></i>';
             setTimeout(() => {
                 this.elements.callCopyRoomCodeBtn.innerHTML = '<i class="fas fa-copy"></i>';
@@ -282,28 +333,24 @@ class VoiceConnect {
         this.notifications.clear();
     }
 
-    handleConnectionStateChange() {
-        const state = this.peerConnection.connectionState;
-        switch (state) {
-            case 'failed':
-                this.showNotification('Connection failed. Please try again.', 'error');
-                this.handleHangup();
-                break;
-            case 'disconnected':
-                this.showNotification('Peer disconnected', 'warning');
-                break;
-            case 'connected':
-                this.showNotification('Connected to peer', 'success');
-                break;
-        }
-    }
-
     handleVisibilityChange() {
         if (document.hidden && this.isCallConnected) {
             this.showNotification('Call running in background', 'info');
         }
     }
+
+    // Placeholder for disconnect handling
+    handleDisconnect() {
+        // Implement reconnection logic if needed
+        this.reconnectionAttempts++;
+        if (this.reconnectionAttempts < this.MAX_RECONNECTION_ATTEMPTS) {
+            // Attempt to reconnect
+            console.log(`Reconnection attempt ${this.reconnectionAttempts}`);
+        } else {
+            this.showNotification('Unable to reconnect. Please check your connection.', 'error');
+        }
+    }
 }
 
 // Initialize the application
-const app = new VoiceConnect();
+const voiceConnect = new VoiceConnect();

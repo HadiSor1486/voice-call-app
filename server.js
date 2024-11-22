@@ -5,7 +5,12 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    cors: {
+        origin: "*",  // Be more specific in production
+        methods: ["GET", "POST"]
+    }
+});
 
 // Serve static files from the current directory
 app.use(express.static(path.join(__dirname, 'public')));
@@ -24,7 +29,7 @@ class RoomManager {
         this.MAX_USERS_PER_ROOM = 2;
         
         // Start periodic cleanup
-        setInterval(() => this.cleanupInactiveRooms(), 60 * 1000); // Check every minute
+        setInterval(() => this.cleanupInactiveRooms(), 60 * 1000);
     }
 
     createRoom(roomId, creatorId) {
@@ -106,8 +111,6 @@ const log = (message, level = 'info') => {
     const timestamp = new Date().toISOString();
     const logMessage = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
     console.log(logMessage);
-    
-    // You could also implement file logging here
 };
 
 io.on('connection', (socket) => {
@@ -122,7 +125,7 @@ io.on('connection', (socket) => {
 
             const newRoom = roomManager.createRoom(room, socket.id);
             socket.join(room);
-            socket.emit('room-created', room);
+            socket.emit('room-created', { room, socketId: socket.id });
             log(`Room ${room} created by ${socket.id}`);
         } catch (error) {
             log(`Error creating room: ${error.message}`, 'error');
@@ -156,14 +159,15 @@ io.on('connection', (socket) => {
         }
     });
 
-    // WebRTC signaling with error handling
+    // WebRTC signaling with more robust error handling
     socket.on('offer', ({ offer, room }) => {
         try {
             roomManager.updateActivity(room);
             socket.to(room).emit('offer', { offer, id: socket.id });
-            log(`Offer sent in room ${room}`);
+            log(`Offer sent in room ${room} by ${socket.id}`);
         } catch (error) {
             log(`Error sending offer: ${error.message}`, 'error');
+            socket.emit('error', 'Failed to send WebRTC offer');
         }
     });
 
@@ -171,9 +175,10 @@ io.on('connection', (socket) => {
         try {
             roomManager.updateActivity(room);
             socket.to(room).emit('answer', { answer, id: socket.id });
-            log(`Answer sent in room ${room}`);
+            log(`Answer sent in room ${room} by ${socket.id}`);
         } catch (error) {
             log(`Error sending answer: ${error.message}`, 'error');
+            socket.emit('error', 'Failed to send WebRTC answer');
         }
     });
 
@@ -181,16 +186,18 @@ io.on('connection', (socket) => {
         try {
             roomManager.updateActivity(room);
             socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
+            log(`ICE candidate sent in room ${room} by ${socket.id}`);
         } catch (error) {
             log(`Error sending ICE candidate: ${error.message}`, 'error');
+            socket.emit('error', 'Failed to send ICE candidate');
         }
     });
 
-    // Enhanced status events with error handling
+    // Status and control events
     socket.on('user-mute', ({ room, isMuted }) => {
         try {
             roomManager.updateActivity(room);
-            socket.to(room).emit('other-user-mute', { isMuted });
+            socket.to(room).emit('other-user-mute', { isMuted, id: socket.id });
             log(`User ${socket.id} mute status: ${isMuted}`);
         } catch (error) {
             log(`Error updating mute status: ${error.message}`, 'error');
@@ -200,7 +207,7 @@ io.on('connection', (socket) => {
     socket.on('user-speaker', ({ room, isSpeakerOff }) => {
         try {
             roomManager.updateActivity(room);
-            socket.to(room).emit('other-user-speaker', { isSpeakerOff });
+            socket.to(room).emit('other-user-speaker', { isSpeakerOff, id: socket.id });
             log(`User ${socket.id} speaker status: ${isSpeakerOff}`);
         } catch (error) {
             log(`Error updating speaker status: ${error.message}`, 'error');
@@ -209,7 +216,7 @@ io.on('connection', (socket) => {
 
     socket.on('leave-call', (room) => {
         try {
-            socket.to(room).emit('call-ended');
+            socket.to(room).emit('call-ended', { id: socket.id });
             roomManager.leaveRoom(socket.id);
             socket.leave(room);
             log(`User ${socket.id} left room ${room}`);
