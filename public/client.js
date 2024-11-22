@@ -1,234 +1,254 @@
 const socket = io();
 
-// Global state
-let state = {
-    localStream: null,
-    peerConnections: new Map(), // {userId: RTCPeerConnection}
-    currentRoom: null,
-    localUser: {
-        id: null,
-        profilePicture: null,
-        isMuted: false
-    },
-    participants: new Map() // {userId: {profilePicture, isMuted}}
-};
+const landingPage = document.getElementById('landing-page');
+const callPage = document.getElementById('call-page');
+const createRoomBtn = document.getElementById('create-room');
+const joinRoomBtn = document.getElementById('join-room');
+const roomCodeInput = document.getElementById('room-code-input');
+const generatedRoomCode = document.getElementById('generated-room-code');
+const roomCodeText = document.getElementById('room-code-text');
+const copyRoomCodeBtn = document.getElementById('copy-room-code');
+const profileUpload = document.getElementById('profile-upload');
+const profileImage = document.getElementById('profile-image');
+const profileName = document.getElementById('profile-name');
 
-// DOM Elements
-const elements = {
-    landingPage: document.getElementById('landing-page'),
-    callPage: document.getElementById('call-page'),
-    createRoomBtn: document.getElementById('create-room'),
-    joinRoomBtn: document.getElementById('join-room'),
-    roomCodeInput: document.getElementById('room-code-input'),
-    generatedRoomCode: document.getElementById('generated-room-code'),
-    roomCodeText: document.getElementById('room-code-text'),
-    copyRoomCodeBtn: document.getElementById('copy-room-code'),
-    participantsGrid: document.getElementById('participants-grid'),
-    muteBtn: document.getElementById('mute-btn'),
-    hangupBtn: document.getElementById('hangup-btn'),
-    speakerBtn: document.getElementById('speaker-btn'),
-    profileUpload: document.getElementById('profile-upload'),
-    profileImage: document.getElementById('profile-image')
+const muteBtn = document.getElementById('mute-btn');
+const hangupBtn = document.getElementById('hangup-btn');
+const speakerBtn = document.getElementById('speaker-btn');
+const participantsGrid = document.getElementById('participants-grid');
+
+let localStream;
+let peerConnection;
+let currentRoom;
+let isCallConnected = false;
+let userProfile = {
+    image: '/assets/default-avatar.png',
+    id: null
 };
 
 const iceServers = {
     iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
     ]
 };
 
-// Profile Picture Handling
-elements.profileUpload.addEventListener('change', (e) => {
+// Profile picture handling
+profileUpload.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
         const reader = new FileReader();
-        reader.onload = (e) => {
-            const profilePicture = e.target.result;
-            elements.profileImage.src = profilePicture;
-            state.localUser.profilePicture = profilePicture;
+        reader.onload = (event) => {
+            profileImage.src = event.target.result;
+            userProfile.image = event.target.result;
+            localStorage.setItem('userProfileImage', event.target.result);
         };
         reader.readAsDataURL(file);
     }
 });
 
-elements.profileImage.parentElement.addEventListener('click', () => {
-    elements.profileUpload.click();
+// Load saved profile picture if exists
+const savedProfileImage = localStorage.getItem('userProfileImage');
+if (savedProfileImage) {
+    profileImage.src = savedProfileImage;
+    userProfile.image = savedProfileImage;
+}
+
+document.querySelector('.profile-image-container').addEventListener('click', () => {
+    profileUpload.click();
 });
 
-// Room Creation and Joining
-elements.createRoomBtn.addEventListener('click', () => {
-    if (!state.localUser.profilePicture) {
-        return alert('Please select a profile picture first.');
+// Room creation and joining
+createRoomBtn.addEventListener('click', () => {
+    if (!userProfile.image) {
+        alert('Please set a profile picture first');
+        return;
     }
     const roomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    elements.generatedRoomCode.style.display = 'flex';
-    elements.roomCodeText.textContent = roomCode;
-    state.currentRoom = roomCode;
-    socket.emit('create-room', { roomCode, profilePicture: state.localUser.profilePicture });
+    generatedRoomCode.style.display = 'flex';
+    roomCodeText.textContent = roomCode;
+    currentRoom = roomCode;
+    socket.emit('create-room', { room: roomCode, profile: userProfile });
 });
 
-elements.joinRoomBtn.addEventListener('click', () => {
-    if (!state.localUser.profilePicture) {
-        return alert('Please select a profile picture first.');
+joinRoomBtn.addEventListener('click', () => {
+    if (!userProfile.image) {
+        alert('Please set a profile picture first');
+        return;
     }
-    const roomCode = elements.roomCodeInput.value.trim().toUpperCase();
+    const roomCode = roomCodeInput.value.trim().toUpperCase();
     if (!roomCode) return alert('Please enter a room code.');
-    state.currentRoom = roomCode;
-    socket.emit('join-room', { roomCode, profilePicture: state.localUser.profilePicture });
+    currentRoom = roomCode;
+    socket.emit('join-room', { room: roomCode, profile: userProfile });
     showCallPage();
 });
 
-// UI Updates
-function updateParticipantsGrid() {
-    elements.participantsGrid.innerHTML = '';
+function createParticipantElement(userId, profileImage) {
+    const participantDiv = document.createElement('div');
+    participantDiv.className = 'participant';
+    participantDiv.id = `participant-${userId}`;
     
-    // Calculate positions in a circle
-    const participants = Array.from(state.participants.entries());
-    const totalParticipants = participants.length + 1; // Include local user
-    const radius = 150; // Adjust based on your needs
-    const centerX = 250;
-    const centerY = 250;
-
-    // Add local user
-    const localAngle = (2 * Math.PI * 0) / totalParticipants;
-    const localX = centerX + radius * Math.cos(localAngle);
-    const localY = centerY + radius * Math.sin(localAngle);
-    addParticipantElement('local', state.localUser, localX, localY);
-
-    // Add other participants
-    participants.forEach(([userId, user], index) => {
-        const angle = (2 * Math.PI * (index + 1)) / totalParticipants;
-        const x = centerX + radius * Math.cos(angle);
-        const y = centerY + radius * Math.sin(angle);
-        addParticipantElement(userId, user, x, y);
-    });
+    const img = document.createElement('img');
+    img.src = profileImage;
+    img.alt = 'Participant';
+    
+    const muteIndicator = document.createElement('div');
+    muteIndicator.className = 'mute-indicator';
+    muteIndicator.style.display = 'none';
+    muteIndicator.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+    
+    participantDiv.appendChild(img);
+    participantDiv.appendChild(muteIndicator);
+    participantsGrid.appendChild(participantDiv);
 }
 
-function addParticipantElement(userId, user, x, y) {
-    const participant = document.createElement('div');
-    participant.className = 'participant';
-    participant.style.transform = `translate(${x - 75}px, ${y - 75}px)`; // Center the element
-
-    participant.innerHTML = `
-        <img src="${user.profilePicture || '/assets/default-avatar.png'}" alt="Participant">
-        ${user.isMuted ? '<div class="mute-indicator"><i class="fas fa-microphone-slash"></i></div>' : ''}
-    `;
-
-    elements.participantsGrid.appendChild(participant);
+function showCallPage() {
+    landingPage.style.display = 'none';
+    callPage.style.display = 'block';
+    createParticipantElement('local', userProfile.image);
+    startCall();
 }
 
-// WebRTC Handling
-async function setupPeerConnection(userId) {
-    const peerConnection = new RTCPeerConnection(iceServers);
-    state.peerConnections.set(userId, peerConnection);
+function startCall() {
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+        .then((stream) => {
+            localStream = stream;
+            peerConnection = new RTCPeerConnection(iceServers);
 
-    // Add local stream
-    state.localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, state.localStream);
-    });
-
-    // Handle ICE candidates
-    peerConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-            socket.emit('ice-candidate', {
-                candidate: event.candidate,
-                userId,
-                room: state.currentRoom
+            localStream.getTracks().forEach((track) => {
+                peerConnection.addTrack(track, localStream);
             });
-        }
-    };
 
-    // Handle incoming tracks
-    peerConnection.ontrack = (event) => {
-        const audio = document.createElement('audio');
-        audio.srcObject = event.streams[0];
-        audio.autoplay = true;
-        audio.id = `audio-${userId}`;
-        document.body.appendChild(audio);
-    };
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('new-ice-candidate', {
+                        candidate: event.candidate,
+                        room: currentRoom
+                    });
+                }
+            };
 
-    return peerConnection;
+            peerConnection.ontrack = (event) => {
+                const audio = document.createElement('audio');
+                audio.srcObject = event.streams[0];
+                audio.autoplay = true;
+                document.body.appendChild(audio);
+            };
+
+            setupCallEventHandlers();
+        })
+        .catch((error) => {
+            console.error('Error accessing media devices:', error);
+            alert('Unable to access microphone. Please check permissions.');
+        });
 }
 
-// Socket Event Handlers
-socket.on('user-joined', async ({ userId, profilePicture }) => {
-    state.participants.set(userId, { profilePicture, isMuted: false });
-    updateParticipantsGrid();
+function setupCallEventHandlers() {
+    socket.on('user-joined', ({ id, profile }) => {
+        isCallConnected = true;
+        createParticipantElement(id, profile.image);
+        showNotification('Call connected! You can now talk.');
+        createAndSendOffer();
+    });
 
-    const peerConnection = await setupPeerConnection(userId);
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    socket.emit('offer', { offer, userId, room: state.currentRoom });
-});
+    socket.on('user-left', ({ id }) => {
+        const participantEl = document.getElementById(`participant-${id}`);
+        if (participantEl) {
+            participantEl.remove();
+        }
+        showNotification('Other participant left the call');
+    });
 
-socket.on('offer', async ({ offer, userId, profilePicture }) => {
-    state.participants.set(userId, { profilePicture, isMuted: false });
-    updateParticipantsGrid();
+    socket.on('offer', async ({ offer }) => {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        socket.emit('answer', { answer, room: currentRoom });
+    });
 
-    const peerConnection = await setupPeerConnection(userId);
-    await peerConnection.setRemoteDescription(offer);
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    socket.emit('answer', { answer, userId, room: state.currentRoom });
-});
+    socket.on('answer', async ({ answer }) => {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    });
 
-socket.on('answer', async ({ answer, userId }) => {
-    const peerConnection = state.peerConnections.get(userId);
-    await peerConnection.setRemoteDescription(answer);
-});
+    socket.on('new-ice-candidate', async ({ candidate }) => {
+        try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+            console.error('Error adding ice candidate:', e);
+        }
+    });
+}
 
-socket.on('ice-candidate', ({ candidate, userId }) => {
-    const peerConnection = state.peerConnections.get(userId);
-    if (peerConnection) {
-        peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-    }
-});
+function createAndSendOffer() {
+    peerConnection.createOffer()
+        .then((offer) => {
+            return peerConnection.setLocalDescription(offer);
+        })
+        .then(() => {
+            socket.emit('offer', { 
+                offer: peerConnection.localDescription, 
+                room: currentRoom 
+            });
+        })
+        .catch(error => {
+            console.error('Error creating offer:', error);
+        });
+}
 
-socket.on('user-left', ({ userId }) => {
-    state.participants.delete(userId);
-    updateParticipantsGrid();
+function showNotification(message) {
+    const notification = document.createElement('div');
+    notification.id = 'call-notification';
+    notification.textContent = message;
+    notification.className = 'show';
+    document.body.appendChild(notification);
     
-    const peerConnection = state.peerConnections.get(userId);
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
+}
+
+// Call controls
+muteBtn.addEventListener('click', () => {
+    const audioTrack = localStream.getAudioTracks()[0];
+    audioTrack.enabled = !audioTrack.enabled;
+    muteBtn.querySelector('i').classList.toggle('fa-microphone-slash');
+    muteBtn.querySelector('i').classList.toggle('fa-microphone');
+    
+    const localParticipant = document.getElementById('participant-local');
+    if (localParticipant) {
+        const muteIndicator = localParticipant.querySelector('.mute-indicator');
+        muteIndicator.style.display = audioTrack.enabled ? 'none' : 'flex';
+    }
+    
+    socket.emit('user-mute', { 
+        room: currentRoom, 
+        isMuted: !audioTrack.enabled 
+    });
+});
+
+hangupBtn.addEventListener('click', () => {
+    if (currentRoom) {
+        socket.emit('leave-call', currentRoom);
+    }
+    terminateCall();
+});
+
+function terminateCall() {
     if (peerConnection) {
         peerConnection.close();
-        state.peerConnections.delete(userId);
+        peerConnection = null;
+    }
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
     }
     
-    const audio = document.getElementById(`audio-${userId}`);
-    if (audio) audio.remove();
-});
-
-// Control Buttons
-elements.muteBtn.addEventListener('click', () => {
-    const audioTrack = state.localStream.getAudioTracks()[0];
-    audioTrack.enabled = !audioTrack.enabled;
-    state.localUser.isMuted = !audioTrack.enabled;
-    elements.muteBtn.querySelector('i').classList.toggle('fa-microphone-slash');
-    elements.muteBtn.querySelector('i').classList.toggle('fa-microphone');
+    participantsGrid.innerHTML = '';
+    const audioElements = document.querySelectorAll('audio');
+    audioElements.forEach(audio => audio.remove());
     
-    socket.emit('user-mute', {
-        room: state.currentRoom,
-        isMuted: state.localUser.isMuted
-    });
-    updateParticipantsGrid();
-});
-
-socket.on('user-mute', ({ userId, isMuted }) => {
-    if (state.participants.has(userId)) {
-        state.participants.get(userId).isMuted = isMuted;
-        updateParticipantsGrid();
-    }
-});
-
-// Initialize call
-async function startCall() {
-    try {
-        state.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        showCallPage();
-    } catch (error) {
-        console.error('Error accessing media devices:', error);
-        alert('Unable to access microphone. Please check permissions.');
-    }
+    landingPage.style.display = 'block';
+    callPage.style.display = 'none';
+    currentRoom = null;
+    isCallConnected = false;
 }
-
-export default { startCall };

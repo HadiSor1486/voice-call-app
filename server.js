@@ -9,91 +9,92 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Room management with enhanced participant tracking
-const rooms = new Map(); // {roomCode: {participants: Map<userId, {profilePicture, isMuted}>}}
+const rooms = new Map();
 
 io.on('connection', (socket) => {
-    socket.on('create-room', ({ roomCode, profilePicture }) => {
-        rooms.set(roomCode, {
-            participants: new Map([[socket.id, { profilePicture, isMuted: false }]])
-        });
-        socket.join(roomCode);
-    });
+    console.log(`New user connected: ${socket.id}`);
 
-    socket.on('join-room', ({ roomCode, profilePicture }) => {
-        const room = rooms.get(roomCode);
-        if (!room) {
-            socket.emit('error', 'Room does not exist');
-            return;
+    socket.on('create-room', ({ room, profile }) => {
+        if (!rooms.has(room)) {
+            rooms.set(room, new Map());
+            const roomUsers = rooms.get(room);
+            roomUsers.set(socket.id, { profile });
+            socket.join(room);
+            console.log(`Room ${room} created by ${socket.id}`);
+            socket.emit('room-created', room);
         }
-
-        room.participants.set(socket.id, { profilePicture, isMuted: false });
-        socket.join(roomCode);
-
-        // Notify existing participants about the new user
-        socket.to(roomCode).emit('user-joined', {
-            userId: socket.id,
-            profilePicture
-        });
-
-        // Send existing participants to the new user
-        room.participants.forEach((participant, userId) => {
-            if (userId !== socket.id) {
-                socket.emit('user-joined', {
-                    userId,
-                    profilePicture: participant.profilePicture
-                });
-            }
-        });
     });
 
-    // WebRTC signaling
-    socket.on('offer', ({ offer, userId, room }) => {
-        socket.to(userId).emit('offer', {
-            offer,
-            userId: socket.id,
-            profilePicture: rooms.get(room)?.participants.get(socket.id)?.profilePicture
-        });
+    socket.on('join-room', ({ room, profile }) => {
+        if (rooms.has(room)) {
+            const roomUsers = rooms.get(room);
+            roomUsers.set(socket.id, { profile });
+            socket.join(room);
+            
+            // Send joined user's profile to existing users
+            socket.to(room).emit('user-joined', { 
+                id: socket.id,
+                profile 
+            });
+            
+            // Send existing users' profiles to joined user
+            roomUsers.forEach((userData, userId) => {
+                if (userId !== socket.id) {
+                    socket.emit('user-joined', {
+                        id: userId,
+                        profile: userData.profile
+                    });
+                }
+            });
+            
+            console.log(`User ${socket.id} joined room ${room}`);
+        } else {
+            socket.emit('error', 'Room does not exist');
+        }
     });
 
-    socket.on('answer', ({ answer, userId, room }) => {
-        socket.to(userId).emit('answer', {
-            answer,
-            userId: socket.id
-        });
+    socket.on('offer', ({ offer, room }) => {
+        socket.to(room).emit('offer', { offer, id: socket.id });
     });
 
-    socket.on('ice-candidate', ({ candidate, userId, room }) => {
-        socket.to(userId).emit('ice-candidate', {
-            candidate,
-            userId: socket.id
-        });
+    socket.on('answer', ({ answer, room }) => {
+        socket.to(room).emit('answer', { answer, id: socket.id });
+    });
+
+    socket.on('new-ice-candidate', ({ candidate, room }) => {
+        socket.to(room).emit('new-ice-candidate', { candidate, id: socket.id });
     });
 
     socket.on('user-mute', ({ room, isMuted }) => {
-        const roomData = rooms.get(room);
-        if (roomData && roomData.participants.has(socket.id)) {
-            roomData.participants.get(socket.id).isMuted = isMuted;
-            socket.to(room).emit('user-mute', {
-                userId: socket.id,
-                isMuted
-            });
-        }
+        socket.to(room).emit('other-user-mute', { id: socket.id, isMuted });
+    });
+
+    socket.on('leave-call', (room) => {
+        handleUserLeaving(socket, room);
     });
 
     socket.on('disconnect', () => {
-        rooms.forEach((room, roomCode) => {
-            if (room.participants.has(socket.id)) {
-                room.participants.delete(socket.id);
-                io.to(roomCode).emit('user-left', { userId: socket.id });
-                
-                if (room.participants.size === 0) {
-                    rooms.delete(roomCode);
-                }
+        console.log(`User ${socket.id} disconnected`);
+        rooms.forEach((users, room) => {
+            if (users.has(socket.id)) {
+                handleUserLeaving(socket, room);
             }
         });
     });
 });
+
+function handleUserLeaving(socket, room) {
+    if (rooms.has(room)) {
+        const roomUsers = rooms.get(room);
+        roomUsers.delete(socket.id);
+        socket.to(room).emit('user-left', { id: socket.id });
+        
+        if (roomUsers.size === 0) {
+            rooms.delete(room);
+            console.log(`Room ${room} deleted - no users left`);
+        }
+    }
+}
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
