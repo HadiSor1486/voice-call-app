@@ -3,7 +3,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 const winston = require('winston');
-const Redis = require('ioredis');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const { v4: uuidv4 } = require('uuid');
@@ -49,104 +48,74 @@ class ServerLogger {
     }
 }
 
-class InMemoryRoomManager {
+class RoomManager {
     constructor(logger) {
         this.logger = logger;
         this.rooms = new Map();
-        this.ROOM_TTL = 24 * 60 * 60; // 24 hours
         this.MAX_ROOM_MEMBERS = 2;
+        this.ROOM_TTL = 24 * 60 * 60 * 1000; // 24 hours
     }
 
     createRoom(roomCode, creatorId) {
-        try {
-            // Check if room already exists
-            if (this.rooms.has(roomCode)) {
-                return false;
-            }
-
-            // Create room with initial member
-            this.rooms.set(roomCode, {
-                creator: creatorId,
-                createdAt: Date.now(),
-                members: [creatorId]
-            });
-
-            this.logger.info(`Room created`, { roomCode, creatorId });
-            
-            // Set timeout to delete room after TTL
-            setTimeout(() => {
-                this.rooms.delete(roomCode);
-            }, this.ROOM_TTL * 1000);
-
-            return true;
-        } catch (error) {
-            this.logger.error(`Error creating room`, { error, roomCode });
+        if (this.rooms.has(roomCode)) {
             return false;
         }
+
+        this.rooms.set(roomCode, {
+            creator: creatorId,
+            createdAt: Date.now(),
+            members: [creatorId]
+        });
+
+        this.logger.info(`Room created`, { roomCode, creatorId });
+        return true;
     }
 
     joinRoom(roomCode, memberId) {
-        try {
-            const room = this.rooms.get(roomCode);
-            
-            if (!room || room.members.length >= this.MAX_ROOM_MEMBERS) {
-                return false;
-            }
-
-            room.members.push(memberId);
-            this.logger.info(`Member joined room`, { roomCode, memberId });
-            return true;
-        } catch (error) {
-            this.logger.error(`Error joining room`, { error, roomCode });
+        const room = this.rooms.get(roomCode);
+        
+        if (!room || room.members.length >= this.MAX_ROOM_MEMBERS) {
             return false;
         }
+
+        room.members.push(memberId);
+        this.logger.info(`Member joined room`, { roomCode, memberId });
+        return true;
     }
 
     leaveRoom(roomCode, memberId) {
-        try {
-            const room = this.rooms.get(roomCode);
-            
-            if (!room) {
-                return false;
-            }
-
-            room.members = room.members.filter(id => id !== memberId);
-
-            if (room.members.length === 0) {
-                this.rooms.delete(roomCode);
-                this.logger.info(`Room deleted`, { roomCode });
-                return true;
-            }
-
-            this.logger.info(`Member left room`, { roomCode, memberId });
-            return false;
-        } catch (error) {
-            this.logger.error(`Error leaving room`, { error, roomCode });
+        const room = this.rooms.get(roomCode);
+        
+        if (!room) {
             return false;
         }
+
+        room.members = room.members.filter(id => id !== memberId);
+
+        if (room.members.length === 0) {
+            this.rooms.delete(roomCode);
+            this.logger.info(`Room deleted`, { roomCode });
+            return true;
+        }
+
+        this.logger.info(`Member left room`, { roomCode, memberId });
+        return false;
     }
 
     getRoomMembers(roomCode) {
-        try {
-            const room = this.rooms.get(roomCode);
-            return room ? room.members : [];
-        } catch (error) {
-            this.logger.error(`Error getting room members`, { error, roomCode });
-            return [];
-        }
+        const room = this.rooms.get(roomCode);
+        return room ? room.members : [];
     }
 
     cleanupZombieRooms() {
-        try {
-            const now = Date.now();
-            for (const [roomCode, room] of this.rooms.entries()) {
-                if (now - room.createdAt > this.ROOM_TTL * 1000 || room.members.length === 0) {
-                    this.rooms.delete(roomCode);
-                    this.logger.info(`Cleaned up zombie room`, { roomCode });
-                }
+        const now = Date.now();
+
+        for (const [roomCode, room] of this.rooms.entries()) {
+            if (!room.members.length || 
+                now - room.createdAt > this.ROOM_TTL) {
+                this.rooms.delete(roomCode);
+                this.logger.info(`Cleaned up zombie room`, { roomCode });
             }
-        } catch (error) {
-            this.logger.error(`Error cleaning up zombie rooms`, { error });
         }
     }
 }
@@ -154,38 +123,7 @@ class InMemoryRoomManager {
 class WebRTCServer {
     constructor() {
         this.logger = new ServerLogger();
-        
-        // Fallback to in-memory room management if Redis connection fails
-        try {
-            this.redis = new Redis({
-                host: process.env.REDIS_HOST || 'localhost',
-                port: process.env.REDIS_PORT || 6379,
-                connectTimeout: 5000, // 5 second timeout
-                retryStrategy: (times) => {
-                    this.logger.warn(`Redis connection attempt ${times}`);
-                    // Stop trying after 5 attempts
-                    if (times > 5) {
-                        this.logger.error('Falling back to in-memory room management');
-                        this.roomManager = new InMemoryRoomManager(this.logger);
-                        return null;
-                    }
-                    // Exponential backoff
-                    return Math.min(times * 500, 3000);
-                }
-            });
-
-            // Redis error handling
-            this.redis.on('error', (error) => {
-                this.logger.error('Redis connection error', { error });
-                this.roomManager = new InMemoryRoomManager(this.logger);
-            });
-
-            // Use Redis-based room manager if connection succeeds
-            this.roomManager = new RoomManager(this.redis, this.logger);
-        } catch (error) {
-            this.logger.error('Failed to initialize Redis', { error });
-            this.roomManager = new InMemoryRoomManager(this.logger);
-        }
+        this.roomManager = new RoomManager(this.logger);
 
         this.app = express();
         this.server = http.createServer(this.app);
@@ -230,11 +168,6 @@ class WebRTCServer {
             }
         }));
 
-        // Catch-all route
-        this.app.get('*', (req, res) => {
-            res.sendFile(path.join(__dirname, 'public', 'index.html'));
-        });
-
         // Advanced error handling
         this.app.use((err, req, res, next) => {
             this.logger.error('Unhandled server error', { 
@@ -272,7 +205,7 @@ class WebRTCServer {
 
             socket.on('create-room', async (roomCode) => {
                 try {
-                    const created = await this.roomManager.createRoom(roomCode, socket.id);
+                    const created = this.roomManager.createRoom(roomCode, socket.id);
                     if (created) {
                         socket.join(roomCode);
                         socket.emit('room-created', roomCode);
@@ -286,7 +219,7 @@ class WebRTCServer {
 
             socket.on('join-room', async (roomCode) => {
                 try {
-                    const joined = await this.roomManager.joinRoom(roomCode, socket.id);
+                    const joined = this.roomManager.joinRoom(roomCode, socket.id);
                     if (joined) {
                         socket.join(roomCode);
                         this.io.to(roomCode).emit('user-joined', { 
@@ -316,7 +249,7 @@ class WebRTCServer {
                     const rooms = Array.from(socket.rooms);
                     for (const roomCode of rooms) {
                         if (roomCode !== socket.id) {
-                            await this.roomManager.leaveRoom(roomCode, socket.id);
+                            this.roomManager.leaveRoom(roomCode, socket.id);
                             socket.to(roomCode).emit('user-left', { 
                                 id: socket.id 
                             });
@@ -339,8 +272,7 @@ class WebRTCServer {
     start(port = process.env.PORT || 3000) {
         this.server.listen(port, () => {
             this.logger.info(`Server running on port ${port}`, { 
-                environment: process.env.NODE_ENV || 'development',
-                roomManagerType: this.roomManager.constructor.name
+                environment: process.env.NODE_ENV || 'development' 
             });
         });
     }
