@@ -4,24 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VoiceConnect - Seamless Communication</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%232557D6'/><path d='M35 40 Q50 30, 65 40 T95 50 Q65 60, 35 60 Z' stroke='white' fill='none' stroke-width='6'/></svg>">
-    <meta name="description" content="VoiceConnect - Simple, Secure, and Instant Communication">
-    <meta name="keywords" content="voice call, webrtc, communication, instant call">
 </head>
 <body>
     <div class="app-container">
         <div id="landing-page" class="page">
             <div class="logo-container">
-                <div class="logo-wrapper">
-                    <h1>VoiceConnect</h1>
-                    <div class="logo-subtext">
-                        <span class="dot"></span>
-                        Simple. Secure. Connected.
-                    </div>
-                </div>
+                <h1>VoiceConnect</h1>
+                <p>Simple. Secure. Connected.</p>
             </div>
             <div class="room-actions">
                 <button id="create-room" class="btn btn-primary">
@@ -30,7 +22,7 @@
                 <div class="join-room-container">
                     <input type="text" id="room-code-input" placeholder="Enter Room Code" maxlength="6">
                     <button id="join-room" class="btn btn-secondary">
-                        <i class="fas fa-sign-in-alt"></i> Join
+                        <i class="fas fa-sign-in-alt"></i> Join Room
                     </button>
                 </div>
                 <div id="generated-room-code" class="room-code-display">
@@ -44,33 +36,23 @@
         </div>
 
         <div id="call-page" class="page">
-            <div class="call-background">
-                <div class="call-content">
-                    <div class="call-header">
-                        <h2>VoiceConnect Call</h2>
-                        <p id="call-status">Connected</p>
-                    </div>
-                    <div class="call-overlay">
-                        <div id="buttons" class="call-controls">
-                            <button id="mute-btn" class="control-btn" title="Mute/Unmute">
-                                <i class="fas fa-microphone"></i>
-                            </button>
-                            <button id="hangup-btn" class="control-btn control-btn-danger" title="End Call">
-                                <i class="fas fa-phone-slash"></i>
-                            </button>
-                            <button id="speaker-btn" class="control-btn" title="Speaker">
-                                <i class="fas fa-volume-up"></i>
-                            </button>
-                        </div>
+            <div id="call-background">
+                <div class="call-overlay">
+                    <div id="buttons" class="call-controls">
+                        <button id="mute-btn" class="control-btn">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button id="hangup-btn" class="control-btn">
+                            <i class="fas fa-phone-slash"></i>
+                        </button>
+                        <button id="speaker-btn" class="control-btn">
+                            <i class="fas fa-volume-up"></i>
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <footer class="footer">
-        © 2024 VoiceConnect. All Rights Reserved. Developed with Love by Hadi.
-    </footer>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="client.js"></script>
