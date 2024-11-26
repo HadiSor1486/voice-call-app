@@ -49,35 +49,35 @@ class ServerLogger {
     }
 }
 
-class RoomManager {
-    constructor(redis, logger) {
-        this.redis = redis;
+class InMemoryRoomManager {
+    constructor(logger) {
         this.logger = logger;
+        this.rooms = new Map();
         this.ROOM_TTL = 24 * 60 * 60; // 24 hours
         this.MAX_ROOM_MEMBERS = 2;
     }
 
-    async createRoom(roomCode, creatorId) {
+    createRoom(roomCode, creatorId) {
         try {
-            const roomKey = `room:${roomCode}`;
-            
             // Check if room already exists
-            const existingRoom = await this.redis.exists(roomKey);
-            if (existingRoom) {
+            if (this.rooms.has(roomCode)) {
                 return false;
             }
 
             // Create room with initial member
-            await this.redis.hmset(roomKey, {
-                'creator': creatorId,
-                'createdAt': Date.now(),
-                'members': JSON.stringify([creatorId])
+            this.rooms.set(roomCode, {
+                creator: creatorId,
+                createdAt: Date.now(),
+                members: [creatorId]
             });
 
-            // Set expiration
-            await this.redis.expire(roomKey, this.ROOM_TTL);
-
             this.logger.info(`Room created`, { roomCode, creatorId });
+            
+            // Set timeout to delete room after TTL
+            setTimeout(() => {
+                this.rooms.delete(roomCode);
+            }, this.ROOM_TTL * 1000);
+
             return true;
         } catch (error) {
             this.logger.error(`Error creating room`, { error, roomCode });
@@ -85,29 +85,15 @@ class RoomManager {
         }
     }
 
-    async joinRoom(roomCode, memberId) {
+    joinRoom(roomCode, memberId) {
         try {
-            const roomKey = `room:${roomCode}`;
+            const room = this.rooms.get(roomCode);
             
-            // Check room exists and isn't full
-            const roomExists = await this.redis.exists(roomKey);
-            if (!roomExists) {
+            if (!room || room.members.length >= this.MAX_ROOM_MEMBERS) {
                 return false;
             }
 
-            const membersJson = await this.redis.hget(roomKey, 'members');
-            const members = JSON.parse(membersJson);
-
-            if (members.length >= this.MAX_ROOM_MEMBERS) {
-                return false;
-            }
-
-            // Add new member
-            members.push(memberId);
-            await this.redis.hmset(roomKey, {
-                'members': JSON.stringify(members)
-            });
-
+            room.members.push(memberId);
             this.logger.info(`Member joined room`, { roomCode, memberId });
             return true;
         } catch (error) {
@@ -116,24 +102,21 @@ class RoomManager {
         }
     }
 
-    async leaveRoom(roomCode, memberId) {
+    leaveRoom(roomCode, memberId) {
         try {
-            const roomKey = `room:${roomCode}`;
+            const room = this.rooms.get(roomCode);
             
-            const membersJson = await this.redis.hget(roomKey, 'members');
-            let members = JSON.parse(membersJson);
+            if (!room) {
+                return false;
+            }
 
-            members = members.filter(id => id !== memberId);
+            room.members = room.members.filter(id => id !== memberId);
 
-            if (members.length === 0) {
-                await this.redis.del(roomKey);
+            if (room.members.length === 0) {
+                this.rooms.delete(roomCode);
                 this.logger.info(`Room deleted`, { roomCode });
                 return true;
             }
-
-            await this.redis.hmset(roomKey, {
-                'members': JSON.stringify(members)
-            });
 
             this.logger.info(`Member left room`, { roomCode, memberId });
             return false;
@@ -143,34 +126,23 @@ class RoomManager {
         }
     }
 
-    async getRoomMembers(roomCode) {
+    getRoomMembers(roomCode) {
         try {
-            const roomKey = `room:${roomCode}`;
-            const membersJson = await this.redis.hget(roomKey, 'members');
-            return JSON.parse(membersJson) || [];
+            const room = this.rooms.get(roomCode);
+            return room ? room.members : [];
         } catch (error) {
             this.logger.error(`Error getting room members`, { error, roomCode });
             return [];
         }
     }
 
-    async cleanupZombieRooms() {
+    cleanupZombieRooms() {
         try {
-            const keys = await this.redis.keys('room:*');
             const now = Date.now();
-
-            for (const key of keys) {
-                const createdAt = await this.redis.hget(key, 'createdAt');
-                const membersJson = await this.redis.hget(key, 'members');
-                const members = JSON.parse(membersJson);
-
-                // Remove rooms older than 24 hours or with no members
-                if (!createdAt || 
-                    !members || 
-                    members.length === 0 || 
-                    now - parseInt(createdAt) > this.ROOM_TTL * 1000) {
-                    await this.redis.del(key);
-                    this.logger.info(`Cleaned up zombie room`, { key });
+            for (const [roomCode, room] of this.rooms.entries()) {
+                if (now - room.createdAt > this.ROOM_TTL * 1000 || room.members.length === 0) {
+                    this.rooms.delete(roomCode);
+                    this.logger.info(`Cleaned up zombie room`, { roomCode });
                 }
             }
         } catch (error) {
@@ -182,11 +154,38 @@ class RoomManager {
 class WebRTCServer {
     constructor() {
         this.logger = new ServerLogger();
-        this.redis = new Redis({
-            host: process.env.REDIS_HOST || 'localhost',
-            port: process.env.REDIS_PORT || 6379
-        });
-        this.roomManager = new RoomManager(this.redis, this.logger);
+        
+        // Fallback to in-memory room management if Redis connection fails
+        try {
+            this.redis = new Redis({
+                host: process.env.REDIS_HOST || 'localhost',
+                port: process.env.REDIS_PORT || 6379,
+                connectTimeout: 5000, // 5 second timeout
+                retryStrategy: (times) => {
+                    this.logger.warn(`Redis connection attempt ${times}`);
+                    // Stop trying after 5 attempts
+                    if (times > 5) {
+                        this.logger.error('Falling back to in-memory room management');
+                        this.roomManager = new InMemoryRoomManager(this.logger);
+                        return null;
+                    }
+                    // Exponential backoff
+                    return Math.min(times * 500, 3000);
+                }
+            });
+
+            // Redis error handling
+            this.redis.on('error', (error) => {
+                this.logger.error('Redis connection error', { error });
+                this.roomManager = new InMemoryRoomManager(this.logger);
+            });
+
+            // Use Redis-based room manager if connection succeeds
+            this.roomManager = new RoomManager(this.redis, this.logger);
+        } catch (error) {
+            this.logger.error('Failed to initialize Redis', { error });
+            this.roomManager = new InMemoryRoomManager(this.logger);
+        }
 
         this.app = express();
         this.server = http.createServer(this.app);
@@ -230,6 +229,11 @@ class WebRTCServer {
                 res.set('X-Frame-Options', 'DENY');
             }
         }));
+
+        // Catch-all route
+        this.app.get('*', (req, res) => {
+            res.sendFile(path.join(__dirname, 'public', 'index.html'));
+        });
 
         // Advanced error handling
         this.app.use((err, req, res, next) => {
@@ -335,7 +339,8 @@ class WebRTCServer {
     start(port = process.env.PORT || 3000) {
         this.server.listen(port, () => {
             this.logger.info(`Server running on port ${port}`, { 
-                environment: process.env.NODE_ENV || 'development' 
+                environment: process.env.NODE_ENV || 'development',
+                roomManagerType: this.roomManager.constructor.name
             });
         });
     }
